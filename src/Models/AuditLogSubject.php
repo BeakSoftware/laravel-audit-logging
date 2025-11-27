@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property string $audit_log_id
  * @property string $subject_type
  * @property string $subject_id
- * @property string|null $role
+ * @property string $role
  */
 class AuditLogSubject extends Model
 {
