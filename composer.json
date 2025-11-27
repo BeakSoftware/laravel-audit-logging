@@ -1,0 +1,54 @@
+{
+	"name": "lunnar/laravel-audit-logging",
+	"description": "Automatic audit logging for Laravel Eloquent models via a simple trait",
+	"type": "library",
+	"license": "MIT",
+	"keywords": [
+		"laravel",
+		"audit",
+		"logging",
+		"eloquent",
+		"model",
+		"trail"
+	],
+	"authors": [
+		{
+			"name": "Lunnar",
+			"email": "hey@lunnar.com"
+		}
+	],
+	"require": {
+		"php": "^8.2",
+		"illuminate/database": "^11.0|^12.0",
+		"illuminate/support": "^11.0|^12.0"
+	},
+	"require-dev": {
+		"orchestra/testbench": "^9.0",
+		"pestphp/pest": "^2.0|^3.0"
+	},
+	"autoload": {
+		"psr-4": {
+			"Lunnar\\AuditLogging\\": "src/"
+		}
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"Lunnar\\AuditLogging\\Tests\\": "tests/"
+		}
+	},
+	"extra": {
+		"laravel": {
+			"providers": [
+				"Lunnar\\AuditLogging\\AuditLoggingServiceProvider"
+			]
+		}
+	},
+	"config": {
+		"sort-packages": true,
+		"allow-plugins": {
+			"pestphp/pest-plugin": true
+		}
+	},
+	"minimum-stability": "stable",
+	"prefer-stable": true
+}
