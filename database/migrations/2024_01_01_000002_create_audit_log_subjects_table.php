@@ -15,8 +15,8 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->uuid('audit_log_id');
             $table->string('subject_type');
-            $table->uuid('subject_id');
-            $table->string('role')->nullable();
+            $table->string('subject_id');
+            $table->string('role')->default('primary');
 
             $table->foreign('audit_log_id')
                 ->references('id')
