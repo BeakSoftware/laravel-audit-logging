@@ -34,9 +34,9 @@ class Audit
     ): AuditLog {
         $now = $createdAt ?: CarbonImmutable::now('UTC');
 
-        // Request metadata
+        // Request metadata (skip for server-generated events)
         $metadata = [];
-        if (config('audit-logging.collect_request_metadata', true)) {
+        if (config('audit-logging.collect_request_metadata', true) && ! app()->runningInConsole()) {
             $metadata = array_filter([
                 'accept_language' => Request::header('Accept-Language'),
                 'action' => Request::route()?->getActionName(),
