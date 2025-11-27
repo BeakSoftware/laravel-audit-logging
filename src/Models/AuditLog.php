@@ -52,10 +52,10 @@ class AuditLog extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'message_data' => 'json',
-        'payload' => 'json',
-        'diff' => 'json',
-        'metadata' => 'json',
+        'message_data' => 'json:unicode',
+        'payload' => 'json:unicode',
+        'diff' => 'json:unicode',
+        'metadata' => 'json:unicode',
         'created_at' => 'immutable_datetime',
     ];
 
