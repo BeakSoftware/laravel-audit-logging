@@ -2,6 +2,7 @@
   "intelephense.diagnostics.undefinedFunctions": false,
   "intelephense.diagnostics.undefinedTypes": false,
   "intelephense.diagnostics.undefinedMethods": false,
+  "intelephense.diagnostics.undefinedProperties": false,
   "laravel-pint.enable": false,
   "phpstan.enabled": false
 }

@@ -18,7 +18,7 @@ return new class extends Migration
             $table->json('payload')->nullable();
             $table->json('diff')->nullable();
             $table->uuid('actor_id')->nullable();
-            $table->uuid('request_id')->nullable()->index();
+            $table->uuid('reference_id')->nullable()->index();
             $table->json('metadata')->nullable();
             $table->timestamp('created_at', 6)->useCurrent();
             $table->string('checksum', 128)->nullable();

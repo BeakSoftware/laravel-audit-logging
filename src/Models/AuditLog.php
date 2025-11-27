@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property array|null $payload
  * @property array|null $diff
  * @property string|null $actor_id
- * @property string|null $request_id
+ * @property string|null $reference_id
  * @property array|null $metadata
  * @property \Carbon\CarbonImmutable $created_at
  * @property string|null $checksum
@@ -36,7 +36,7 @@ class AuditLog extends Model
         'message_data',
         'payload',
         'diff',
-        'request_id',
+        'reference_id',
         'metadata',
         'actor_id',
         'checksum',

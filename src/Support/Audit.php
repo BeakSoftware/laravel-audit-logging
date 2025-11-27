@@ -82,7 +82,7 @@ class Audit
                 'payload' => SensitiveDataSanitizer::sanitize($payload),
                 'diff' => SensitiveDataSanitizer::sanitize($diff),
                 'actor_id' => $actorId ?? Auth::id(),
-                'request_id' => Request::header('X-Request-Id'),
+                'reference_id' => Request::header('X-Lunnar-Reference-Id'),
                 'metadata' => $metadata ?: null,
                 'created_at' => $now,
                 'checksum' => $checksum,
