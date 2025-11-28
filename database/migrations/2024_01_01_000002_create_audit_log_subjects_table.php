@@ -20,7 +20,7 @@ return new class extends Migration
 
             $table->foreign('audit_log_id')
                 ->references('id')
-                ->on('audit_logs')
+                ->on('audit_log_events')
                 ->cascadeOnDelete();
 
             $table->index(['subject_type', 'subject_id', 'audit_log_id'], 'idx_subject_lookup');
