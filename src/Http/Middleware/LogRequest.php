@@ -5,6 +5,7 @@ namespace Lunnar\AuditLogging\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Lunnar\AuditLogging\Models\AuditLogRequest;
 use Lunnar\AuditLogging\Support\SensitiveDataSanitizer;
 use Symfony\Component\HttpFoundation\Response;
@@ -19,7 +20,7 @@ class LogRequest
     /**
      * The logged request record ID.
      */
-    protected ?int $logRecordId = null;
+    protected ?string $logRecordId = null;
 
     /**
      * Handle an incoming request.
@@ -39,7 +40,10 @@ class LogRequest
         }
 
         // Log request immediately so it's captured even if the request crashes
-        $this->logRecordId = AuditLogRequest::query()->insertGetId([
+        $this->logRecordId = (string) Str::uuid();
+
+        AuditLogRequest::query()->insert([
+            'id' => $this->logRecordId,
             'method' => $request->method(),
             'url' => $request->url(),
             'route_name' => $request->route()?->getName(),
