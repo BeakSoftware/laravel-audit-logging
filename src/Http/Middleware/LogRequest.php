@@ -17,9 +17,9 @@ class LogRequest
     protected float $startTime;
 
     /**
-     * The logged request record.
+     * The logged request record ID.
      */
-    protected ?AuditLogRequest $logRecord = null;
+    protected ?int $logRecordId = null;
 
     /**
      * Handle an incoming request.
@@ -34,7 +34,7 @@ class LogRequest
         }
 
         // Log request immediately so it's captured even if the request crashes
-        $this->logRecord = AuditLogRequest::create([
+        $this->logRecordId = AuditLogRequest::query()->insertGetId([
             'method' => $request->method(),
             'url' => $request->url(),
             'route_name' => $request->route()?->getName(),
@@ -57,17 +57,19 @@ class LogRequest
      */
     public function terminate(Request $request, Response $response): void
     {
-        if (! $this->logRecord) {
+        if (! $this->logRecordId) {
             return;
         }
 
         $durationMs = (microtime(true) - $this->startTime) * 1000;
 
-        $this->logRecord->update([
-            'status_code' => $response->getStatusCode(),
-            'duration_ms' => round($durationMs, 2),
-            'response_body' => $this->getResponseBody($response),
-        ]);
+        AuditLogRequest::query()
+            ->where('id', $this->logRecordId)
+            ->update([
+                'status_code' => $response->getStatusCode(),
+                'duration_ms' => round($durationMs, 2),
+                'response_body' => $this->getResponseBody($response),
+            ]);
     }
 
     /**
