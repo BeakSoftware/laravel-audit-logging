@@ -254,9 +254,35 @@ $event = AuditLogEvent::first();
 $request = $event->request(); // Returns AuditLogRequest or null
 ```
 
+## Request Logging
+
+HTTP requests are automatically logged for all routes in the `web` and `api` middleware groups. The middleware runs after authentication, so it knows whether a user is logged in.
+
+### Configuration
+
+In `config/audit-logging.php`:
+
+```php
+'request_logging' => [
+    'only_authenticated' => true, // Only log requests from authenticated users
+],
+```
+
+When `only_authenticated` is `true`, requests from unauthenticated users are completely skipped (no database operations). This helps filter out bot traffic and reduces database load.
+
+### Custom Route Groups
+
+For custom middleware groups, use the `audit.requests` middleware alias:
+
+```php
+Route::middleware(['custom-auth', 'audit.requests'])->group(function () {
+    // routes
+});
+```
+
 ## Querying Request Logs
 
-All HTTP requests are automatically logged to the `audit_log_requests` table.
+HTTP requests are logged to the `audit_log_requests` table.
 
 ```php
 use Lunnar\AuditLogging\Models\AuditLogRequest;

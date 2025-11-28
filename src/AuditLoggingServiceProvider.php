@@ -24,10 +24,18 @@ class AuditLoggingServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Register middleware globally
+        // Register EnsureReferenceId globally (needs to run early)
         $kernel = $this->app->make(Kernel::class);
         $kernel->pushMiddleware(EnsureReferenceId::class);
-        $kernel->pushMiddleware(LogRequest::class);
+
+        // Append LogRequest to web and api middleware groups (runs after auth)
+        /** @var \Illuminate\Routing\Router $router */
+        $router = $this->app->make('router');
+        $router->pushMiddlewareToGroup('web', LogRequest::class);
+        $router->pushMiddlewareToGroup('api', LogRequest::class);
+
+        // Also register as alias for custom route groups
+        $router->aliasMiddleware('audit.requests', LogRequest::class);
 
         // Publish config
         $this->publishes([

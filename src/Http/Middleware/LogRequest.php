@@ -17,14 +17,9 @@ class LogRequest
     protected float $startTime;
 
     /**
-     * The request instance.
+     * The logged request record.
      */
-    protected Request $request;
-
-    /**
-     * The response instance.
-     */
-    protected Response $response;
+    protected ?AuditLogRequest $logRecord = null;
 
     /**
      * Handle an incoming request.
@@ -32,27 +27,18 @@ class LogRequest
     public function handle(Request $request, Closure $next): Response
     {
         $this->startTime = microtime(true);
-        $this->request = $request;
 
-        $this->response = $next($request);
+        // Skip logging if only_authenticated is enabled and no user is logged in
+        if (config('audit-logging.request_logging.only_authenticated', false) && Auth::id() === null) {
+            return $next($request);
+        }
 
-        return $this->response;
-    }
-
-    /**
-     * Handle tasks after the response has been sent to the browser.
-     */
-    public function terminate(Request $request, Response $response): void
-    {
-        $durationMs = (microtime(true) - $this->startTime) * 1000;
-
-        AuditLogRequest::create([
+        // Log request immediately so it's captured even if the request crashes
+        $this->logRecord = AuditLogRequest::create([
             'method' => $request->method(),
             'url' => $request->url(),
             'route_name' => $request->route()?->getName(),
             'route_action' => $request->route()?->getActionName(),
-            'status_code' => $response->getStatusCode(),
-            'duration_ms' => round($durationMs, 2),
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
             'session_id' => $request->hasSession() ? $request->session()->getId() : null,
@@ -61,6 +47,25 @@ class LogRequest
             'request_headers' => $this->sanitizeHeaders($request->headers->all()),
             'request_query' => $this->getRequestQuery($request),
             'request_body' => $this->getRequestBody($request),
+        ]);
+
+        return $next($request);
+    }
+
+    /**
+     * Handle tasks after the response has been sent to the browser.
+     */
+    public function terminate(Request $request, Response $response): void
+    {
+        if (! $this->logRecord) {
+            return;
+        }
+
+        $durationMs = (microtime(true) - $this->startTime) * 1000;
+
+        $this->logRecord->update([
+            'status_code' => $response->getStatusCode(),
+            'duration_ms' => round($durationMs, 2),
             'response_body' => $this->getResponseBody($response),
         ]);
     }
