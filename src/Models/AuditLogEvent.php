@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Lunnar\AuditLogging\Database\Factories\AuditLogEventFactory;
 
 /**
@@ -84,13 +85,9 @@ class AuditLogEvent extends Model
     /**
      * Get the request associated with this event via reference_id.
      */
-    public function request(): ?AuditLogRequest
+    public function request(): HasOne
     {
-        if (! $this->reference_id) {
-            return null;
-        }
-
-        return AuditLogRequest::where('reference_id', $this->reference_id)->first();
+        return $this->hasOne(AuditLogRequest::class, 'reference_id', 'reference_id');
     }
 
     /**

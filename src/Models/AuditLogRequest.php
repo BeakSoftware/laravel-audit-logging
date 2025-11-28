@@ -3,10 +3,10 @@
 namespace Lunnar\AuditLogging\Models;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property string $id
@@ -88,9 +88,9 @@ class AuditLogRequest extends Model
     /**
      * Get the audit log events associated with this request via reference_id.
      */
-    public function events(): Collection
+    public function events(): HasMany
     {
-        return AuditLogEvent::where('reference_id', $this->reference_id)->get();
+        return $this->hasMany(AuditLogEvent::class, 'reference_id', 'reference_id');
     }
 
     /**
