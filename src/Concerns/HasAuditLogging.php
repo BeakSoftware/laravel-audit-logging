@@ -3,9 +3,11 @@
 namespace Lunnar\AuditLogging\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Lunnar\AuditLogging\Support\Audit;
 use ReflectionClass;
+use ReflectionMethod;
 
 /**
  * Trait for automatic audit logging on Eloquent models.
@@ -20,6 +22,8 @@ use ReflectionClass;
  * protected static string $auditEventPrefix       - Custom event prefix (default: derived from morph map or table name)
  * protected static string $auditSubjectType       - Custom subject type (default: derived from morph map or table name)
  * protected static array $auditAdditionalSubjects - Additional subjects to include, e.g. [['type' => 'organizations', 'foreign_key' => 'organization_id', 'role' => 'parent']]
+ * protected static bool $auditAutoParentSubjects  - Auto-detect BelongsTo relationships as parent subjects (default: true)
+ * protected static array $auditExcludeParents     - BelongsTo relationships to exclude from auto-detection, e.g. ['createdBy', 'country']
  */
 trait HasAuditLogging
 {
@@ -87,17 +91,37 @@ trait HasAuditLogging
             ],
         ];
 
+        // Track added subjects to avoid duplicates
+        $addedSubjects = ["{$subjectType}:{$model->getKey()}"];
+
+        // Auto-detect BelongsTo relationships as parent subjects
+        if (static::shouldAutoDetectParentSubjects()) {
+            foreach (static::getAuditParentSubjects($model) as $parent) {
+                $key = "{$parent['subject_type']}:{$parent['subject_id']}";
+                if (! in_array($key, $addedSubjects)) {
+                    $subjects[] = $parent;
+                    $addedSubjects[] = $key;
+                }
+            }
+        }
+
         // Add any additional subjects (e.g., parent organization)
         foreach (static::getAuditAdditionalSubjects() as $additional) {
             $foreignKey = $additional['foreign_key'];
             $foreignValue = $model->getAttribute($foreignKey);
 
             if ($foreignValue !== null) {
-                $subjects[] = [
-                    'subject_type' => $additional['type'],
-                    'subject_id' => (string) $foreignValue,
-                    'role' => $additional['role'] ?? 'related',
-                ];
+                $type = $additional['type'];
+                $key = "{$type}:{$foreignValue}";
+
+                if (! in_array($key, $addedSubjects)) {
+                    $subjects[] = [
+                        'subject_type' => $type,
+                        'subject_id' => (string) $foreignValue,
+                        'role' => $additional['role'] ?? 'related',
+                    ];
+                    $addedSubjects[] = $key;
+                }
             }
         }
 
@@ -252,6 +276,113 @@ trait HasAuditLogging
     protected static function getAuditAdditionalSubjects(): array
     {
         return static::getStaticPropertyValue('auditAdditionalSubjects', []);
+    }
+
+    /**
+     * Check if automatic parent subject detection is enabled.
+     */
+    protected static function shouldAutoDetectParentSubjects(): bool
+    {
+        return static::getStaticPropertyValue('auditAutoParentSubjects', true);
+    }
+
+    /**
+     * Get BelongsTo relationship names to exclude from auto-detection.
+     *
+     * @return array<string>
+     */
+    protected static function getAuditExcludeParents(): array
+    {
+        return static::getStaticPropertyValue('auditExcludeParents', []);
+    }
+
+    /**
+     * Auto-detect BelongsTo relationships and return them as parent subjects.
+     *
+     * @return array<array{subject_type: string, subject_id: string, role: string}>
+     */
+    protected static function getAuditParentSubjects(Model $model): array
+    {
+        $subjects = [];
+        $excludeParents = static::getAuditExcludeParents();
+        $reflection = new ReflectionClass($model);
+
+        foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+            // Skip methods from parent classes (traits, base Model, etc.)
+            if ($method->class !== static::class) {
+                continue;
+            }
+
+            // Skip methods with parameters
+            if ($method->getNumberOfParameters() > 0) {
+                continue;
+            }
+
+            // Skip excluded relationships
+            if (in_array($method->getName(), $excludeParents)) {
+                continue;
+            }
+
+            // Check return type for BelongsTo hint
+            $returnType = $method->getReturnType();
+            if ($returnType === null) {
+                continue;
+            }
+
+            $typeName = $returnType instanceof \ReflectionNamedType ? $returnType->getName() : null;
+            if ($typeName !== BelongsTo::class) {
+                continue;
+            }
+
+            // Call the method to get the relationship
+            try {
+                $relation = $method->invoke($model);
+                if (! $relation instanceof BelongsTo) {
+                    continue;
+                }
+
+                $foreignKey = $relation->getForeignKeyName();
+                $foreignValue = $model->getAttribute($foreignKey);
+
+                if ($foreignValue === null) {
+                    continue;
+                }
+
+                // Get subject type from related model
+                $relatedModel = $relation->getRelated();
+                $subjectType = static::resolveSubjectTypeForModel($relatedModel);
+
+                $subjects[] = [
+                    'subject_type' => $subjectType,
+                    'subject_id' => (string) $foreignValue,
+                    'role' => 'parent',
+                ];
+            } catch (\Throwable) {
+                // Skip if method call fails
+                continue;
+            }
+        }
+
+        return $subjects;
+    }
+
+    /**
+     * Resolve the subject type for a given model instance.
+     */
+    protected static function resolveSubjectTypeForModel(Model $model): string
+    {
+        // Check morph map first
+        $morphMap = Relation::morphMap();
+        $class = get_class($model);
+
+        foreach ($morphMap as $alias => $mappedClass) {
+            if ($mappedClass === $class) {
+                return $alias;
+            }
+        }
+
+        // Fall back to table name
+        return $model->getTable();
     }
 
     /**

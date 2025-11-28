@@ -3,6 +3,7 @@
   "intelephense.diagnostics.undefinedTypes": false,
   "intelephense.diagnostics.undefinedMethods": false,
   "intelephense.diagnostics.undefinedProperties": false,
+  "intelephense.diagnostics.undefinedClassConstants": false,
   "laravel-pint.enable": false,
   "phpstan.enabled": false,
   "bladeFormatter.format.enabled": false

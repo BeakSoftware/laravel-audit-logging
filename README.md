@@ -6,10 +6,10 @@ Automatic audit logging for Laravel Eloquent models via a simple trait.
 
 - 🔄 Automatic logging of `created`, `updated`, and `deleted` events
 - 🎯 Per-model configuration via static properties
+- 🔗 Auto-detection of `BelongsTo` relationships as parent subjects
 - 🔒 Automatic sanitization of sensitive data (passwords, tokens, etc.)
 - 🔐 HMAC checksum for data integrity verification
 - 📊 Rich metadata capture (IP, user agent, route, etc.)
-- 🔗 Support for multiple subjects per audit entry (e.g., parent relationships)
 - 🗑️ Configurable retention policy for automatic cleanup
 
 ## Installation
@@ -80,7 +80,9 @@ All configuration is done via static properties on your model:
 | `$auditEvents`             | `array`  | `['created', 'updated', 'deleted']`                | Which events to log                                                |
 | `$auditEventPrefix`        | `string` | _from morph map/table_                             | Event prefix (e.g., `product`)                                     |
 | `$auditSubjectType`        | `string` | _from morph map/table_                             | Subject type for audit entries                                     |
-| `$auditAdditionalSubjects` | `array`  | `[]`                                               | Additional related subjects                                        |
+| `$auditAdditionalSubjects` | `array`  | `[]`                                               | Additional related subjects (manual)                               |
+| `$auditAutoParentSubjects` | `bool`   | `true`                                             | Auto-detect `BelongsTo` relationships as parent subjects           |
+| `$auditExcludeParents`     | `array`  | `[]`                                               | `BelongsTo` relationships to exclude from auto-detection           |
 
 ### Example with All Options
 
@@ -114,9 +116,73 @@ class User extends Model
 }
 ```
 
-### Additional Subjects (Parent Relationships)
+### Parent Subjects (BelongsTo Relationships)
 
-For models that belong to a parent (e.g., roles belonging to organizations):
+By default, the trait **automatically detects** all `BelongsTo` relationships and includes them as parent subjects in audit entries. This requires your relationship methods to have a `BelongsTo` return type hint.
+
+```php
+class Product extends Model
+{
+    use HasAuditLogging;
+
+    // These relationships are automatically detected and included as parent subjects
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
+    }
+}
+```
+
+When a `Product` is created/updated/deleted, the audit log will automatically include:
+- Primary subject: `products` (the product itself)
+- Parent subject: `organizations` (from `organization()`)
+- Parent subject: `categories` (from `category()`)
+
+#### Excluding Specific Relationships
+
+To exclude certain relationships from auto-detection:
+
+```php
+class Product extends Model
+{
+    use HasAuditLogging;
+
+    // Don't include these relationships in audit logs
+    protected static array $auditExcludeParents = ['createdBy', 'country'];
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    public function createdBy(): BelongsTo  // Excluded
+    {
+        return $this->belongsTo(User::class);
+    }
+}
+```
+
+#### Disabling Auto-Detection
+
+To disable automatic parent detection entirely:
+
+```php
+class Product extends Model
+{
+    use HasAuditLogging;
+
+    protected static bool $auditAutoParentSubjects = false;
+}
+```
+
+#### Manual Additional Subjects
+
+You can also manually specify additional subjects (useful when auto-detection isn't possible or for non-BelongsTo relationships):
 
 ```php
 class Role extends Model
@@ -125,12 +191,12 @@ class Role extends Model
 
     protected static array $auditMessageFields = ['name'];
 
-    // Include the parent organization in audit entries
+    // Manually specify additional subjects
     protected static array $auditAdditionalSubjects = [
         [
-            'type' => 'organizations',       // Subject type
+            'type' => 'organizations',           // Subject type
             'foreign_key' => 'organization_id',  // Foreign key on this model
-            'role' => 'parent'               // Role in the audit entry
+            'role' => 'parent'                   // Role in the audit entry
         ],
     ];
 }
