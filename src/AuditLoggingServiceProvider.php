@@ -7,6 +7,7 @@ use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Support\ServiceProvider;
 use Lunnar\AuditLogging\Console\Commands\ApplyRetentionPolicyCommand;
 use Lunnar\AuditLogging\Http\Middleware\EnsureReferenceId;
+use Lunnar\AuditLogging\Http\Middleware\LogRequest;
 
 class AuditLoggingServiceProvider extends ServiceProvider
 {
@@ -23,9 +24,10 @@ class AuditLoggingServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Register the EnsureReferenceId middleware globally
+        // Register middleware globally
         $kernel = $this->app->make(Kernel::class);
         $kernel->pushMiddleware(EnsureReferenceId::class);
+        $kernel->pushMiddleware(LogRequest::class);
 
         // Publish config
         $this->publishes([
@@ -48,25 +50,41 @@ class AuditLoggingServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register scheduled tasks for the retention policy.
+     * Register scheduled tasks for the retention policies.
      */
     protected function registerScheduledTasks(): void
     {
-        $schedule = config('audit-logging.retention.schedule');
+        $eventSchedule = config('audit-logging.retention.schedule');
+        $requestSchedule = config('audit-logging.request_log_retention.schedule');
 
-        if ($schedule === null) {
+        if ($eventSchedule === null && $requestSchedule === null) {
             return;
         }
 
-        $this->callAfterResolving(Schedule::class, function (Schedule $scheduler) use ($schedule) {
-            $task = $scheduler->command('audit:retention')->at('03:00');
+        $this->callAfterResolving(Schedule::class, function (Schedule $scheduler) use ($eventSchedule, $requestSchedule) {
+            // Schedule event retention
+            if ($eventSchedule !== null) {
+                $eventTask = $scheduler->command('audit:retention --events')->at('03:00');
 
-            match ($schedule) {
-                'daily' => $task->daily(),
-                'weekly' => $task->weekly(),
-                'monthly' => $task->monthly(),
-                default => null,
-            };
+                match ($eventSchedule) {
+                    'daily' => $eventTask->daily(),
+                    'weekly' => $eventTask->weekly(),
+                    'monthly' => $eventTask->monthly(),
+                    default => null,
+                };
+            }
+
+            // Schedule request log retention
+            if ($requestSchedule !== null) {
+                $requestTask = $scheduler->command('audit:retention --requests')->at('03:15');
+
+                match ($requestSchedule) {
+                    'daily' => $requestTask->daily(),
+                    'weekly' => $requestTask->weekly(),
+                    'monthly' => $requestTask->monthly(),
+                    default => null,
+                };
+            }
         });
     }
 }

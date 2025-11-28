@@ -3,14 +3,14 @@
 namespace Lunnar\AuditLogging\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Lunnar\AuditLogging\Models\AuditLog;
+use Lunnar\AuditLogging\Models\AuditLogEvent;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\Lunnar\AuditLogging\Models\AuditLog>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\Lunnar\AuditLogging\Models\AuditLogEvent>
  */
-class AuditLogFactory extends Factory
+class AuditLogEventFactory extends Factory
 {
-    protected $model = AuditLog::class;
+    protected $model = AuditLogEvent::class;
 
     /**
      * Define the model's default state.
@@ -33,11 +33,8 @@ class AuditLogFactory extends Factory
             'message_data' => $this->generateMessageData($event),
             'payload' => $this->generatePayload($event),
             'diff' => $this->faker->optional(0.5)->passthrough($this->generateDiff()),
-            'metadata' => [
-                'ip' => $this->faker->ipv4(),
-                'ua' => $this->faker->userAgent(),
-            ],
             'actor_id' => $this->faker->uuid(),
+            'reference_id' => $this->faker->uuid(),
             'checksum' => hash('sha256', $this->faker->uuid()),
         ];
     }
@@ -104,12 +101,12 @@ class AuditLogFactory extends Factory
     }
 
     /**
-     * Set specific metadata.
+     * Set a specific reference ID.
      */
-    public function withMetadata(array $metadata): static
+    public function withReferenceId(string $referenceId): static
     {
         return $this->state(fn (array $attributes) => [
-            'metadata' => $metadata,
+            'reference_id' => $referenceId,
         ]);
     }
 
@@ -150,7 +147,7 @@ class AuditLogFactory extends Factory
      */
     public function withSubjects(array $subjects): static
     {
-        return $this->afterCreating(function (AuditLog $auditLog) use ($subjects) {
+        return $this->afterCreating(function (AuditLogEvent $auditLog) use ($subjects) {
             foreach ($subjects as $subject) {
                 $auditLog->subjects()->create([
                     'subject_type' => $subject['type'],

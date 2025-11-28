@@ -46,7 +46,7 @@ class AuditLogSubject extends Model
      */
     public function log(): BelongsTo
     {
-        return $this->belongsTo(AuditLog::class, 'audit_log_id');
+        return $this->belongsTo(AuditLogEvent::class, 'audit_log_id');
     }
 
     /**

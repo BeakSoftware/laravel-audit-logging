@@ -9,8 +9,9 @@ Automatic audit logging for Laravel Eloquent models via a simple trait.
 - 🔗 Auto-detection of `BelongsTo` relationships as parent subjects
 - 🔒 Automatic sanitization of sensitive data (passwords, tokens, etc.)
 - 🔐 HMAC checksum for data integrity verification
-- 📊 Rich metadata capture (IP, user agent, route, etc.)
-- 🗑️ Configurable retention policy for automatic cleanup
+- 📡 HTTP request logging with full request/response capture
+- 🔍 Request tracing via `reference_id` linking requests to audit events
+- 🗑️ Separate configurable retention policies for events and requests
 
 ## Installation
 
@@ -228,66 +229,137 @@ Audit::write(
 );
 ```
 
-## Querying Audit Logs
+## Querying Audit Log Events
 
 ```php
-use Lunnar\AuditLogging\Models\AuditLog;
+use Lunnar\AuditLogging\Models\AuditLogEvent;
 
-// Get all logs for a specific model
-$logs = AuditLog::forSubject($product)->latest('created_at')->get();
+// Get all events for a specific model
+$events = AuditLogEvent::forSubject($product)->latest('created_at')->get();
 
-// Get all logs by a specific actor
-$logs = AuditLog::forActor($userId)->get();
+// Get all events by a specific actor
+$events = AuditLogEvent::forActor($userId)->get();
 
-// Get all logs for a specific event
-$logs = AuditLog::forEvent('product.created')->get();
+// Get all events for a specific event type
+$events = AuditLogEvent::forEvent('product.created')->get();
 
-// Get all logs matching an event pattern
-$logs = AuditLog::forEventLike('product.%')->get();
+// Get all events matching an event pattern
+$events = AuditLogEvent::forEventLike('product.%')->get();
+
+// Get all events for a specific request (via reference_id)
+$events = AuditLogEvent::forReferenceId($referenceId)->get();
+
+// Get the HTTP request associated with an event
+$event = AuditLogEvent::first();
+$request = $event->request(); // Returns AuditLogRequest or null
+```
+
+## Querying Request Logs
+
+All HTTP requests are automatically logged to the `audit_log_requests` table.
+
+```php
+use Lunnar\AuditLogging\Models\AuditLogRequest;
+
+// Get all requests for a specific reference ID
+$requests = AuditLogRequest::forReferenceId($referenceId)->get();
+
+// Get all requests by a specific actor
+$requests = AuditLogRequest::forActor($userId)->get();
+
+// Get all requests for a specific route
+$requests = AuditLogRequest::forRoute('api.products.store')->get();
+
+// Get all requests with a specific HTTP method
+$requests = AuditLogRequest::forMethod('POST')->get();
+
+// Get all failed requests (4xx and 5xx)
+$requests = AuditLogRequest::failed()->get();
+
+// Get all successful requests (2xx)
+$requests = AuditLogRequest::successful()->get();
+
+// Get the audit events associated with a request
+$request = AuditLogRequest::first();
+$events = $request->events(); // Returns Collection of AuditLogEvent
+```
+
+## Request Tracing
+
+Every HTTP request is assigned a unique `reference_id` (via the `X-Lunnar-Reference-Id` header). This ID links:
+
+- The HTTP request in `audit_log_requests`
+- All audit events triggered during that request in `audit_log_events`
+
+This enables full traceability from a single request to all database changes it caused.
+
+```php
+// Find all changes made during a specific request
+$referenceId = '550e8400-e29b-41d4-a716-446655440000';
+
+$request = AuditLogRequest::forReferenceId($referenceId)->first();
+$events = AuditLogEvent::forReferenceId($referenceId)->get();
+
+// Or from an event, get the original request
+$event = AuditLogEvent::first();
+$httpRequest = $event->request();
 ```
 
 ## Verifying Checksum Integrity
 
 ```php
 use Lunnar\AuditLogging\Support\AuditChecksum;
+use Lunnar\AuditLogging\Models\AuditLogEvent;
 
-$log = AuditLog::find($id);
+$event = AuditLogEvent::find($id);
 
 $isValid = AuditChecksum::verify([
-    'event' => $log->event,
-    'message_data' => $log->message_data,
-    'payload' => $log->payload,
-    'diff' => $log->diff,
-    'actor_id' => $log->actor_id,
-    'subjects' => $log->subjects->map->only(['subject_type', 'subject_id', 'role'])->all(),
-], $log->checksum);
+    'event' => $event->event,
+    'message_data' => $event->message_data,
+    'payload' => $event->payload,
+    'diff' => $event->diff,
+    'actor_id' => $event->actor_id,
+    'subjects' => $event->subjects->map->only(['subject_type', 'subject_id', 'role'])->all(),
+], $event->checksum);
 ```
 
 ## Retention Policy
 
-The package includes a retention policy feature for automatically deleting old audit logs.
+The package includes separate retention policies for audit log events and request logs, allowing different retention periods for each.
 
 ### Configuration
 
 In `config/audit-logging.php`:
 
 ```php
+// Audit log events retention
 'retention' => [
-    'delete_after' => 365,   // Delete logs after 1 year
+    'delete_after' => 365,   // Delete events after 1 year
     'schedule' => 'daily',   // Automatically run daily at 3:00 AM
+],
+
+// Request logs retention (can be shorter since request data is often less critical)
+'request_log_retention' => [
+    'delete_after' => 30,    // Delete request logs after 30 days
+    'schedule' => 'daily',   // Automatically run daily at 3:15 AM
 ],
 ```
 
-Options:
-- `delete_after`: Days until logs are deleted. Set to `null` to disable.
+Options for each:
+- `delete_after`: Days until records are deleted. Set to `null` to disable.
 - `schedule`: `'daily'`, `'weekly'`, `'monthly'`, or `null` to disable automatic scheduling.
 
 ### Running Manually
 
-You can also run the command manually:
-
 ```bash
+# Run both retention policies
 php artisan audit:retention
+
+# Only process audit log events
+php artisan audit:retention --events
+
+# Only process request logs
+php artisan audit:retention --requests
 ```
 
 ## Configuration

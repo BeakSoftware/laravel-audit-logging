@@ -3,7 +3,7 @@
 namespace Lunnar\AuditLogging\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Lunnar\AuditLogging\Models\AuditLog;
+use Lunnar\AuditLogging\Models\AuditLogEvent;
 use Lunnar\AuditLogging\Models\AuditLogSubject;
 
 /**
@@ -21,7 +21,7 @@ class AuditLogSubjectFactory extends Factory
     public function definition(): array
     {
         return [
-            'audit_log_id' => AuditLog::factory(),
+            'audit_log_id' => AuditLogEvent::factory(),
             'subject_type' => $this->faker->randomElement(['users', 'posts', 'comments', 'orders']),
             'subject_id' => $this->faker->uuid(),
             'role' => $this->faker->randomElement(['primary', 'parent', 'related', 'actor', 'target']),
@@ -61,12 +61,12 @@ class AuditLogSubjectFactory extends Factory
     }
 
     /**
-     * Attach to an existing audit log.
+     * Attach to an existing audit log event.
      */
-    public function forAuditLog(AuditLog $auditLog): static
+    public function forAuditLogEvent(AuditLogEvent $auditLogEvent): static
     {
         return $this->state(fn (array $attributes) => [
-            'audit_log_id' => $auditLog->id,
+            'audit_log_id' => $auditLogEvent->id,
         ]);
     }
 

@@ -12,33 +12,59 @@ class ApplyRetentionPolicyCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'audit:retention';
+    protected $signature = 'audit:retention
+                            {--events : Only process audit log events}
+                            {--requests : Only process request logs}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Delete old audit logs based on the configured retention policy';
+    protected $description = 'Delete old audit logs and request logs based on the configured retention policies';
 
     /**
      * Execute the console command.
      */
     public function handle(RetentionPolicy $policy): int
     {
-        $deleteAfter = config('audit-logging.retention.delete_after');
+        $onlyEvents = $this->option('events');
+        $onlyRequests = $this->option('requests');
+        $processAll = ! $onlyEvents && ! $onlyRequests;
 
-        if ($deleteAfter === null) {
-            $this->warn('No retention policy configured. Set delete_after in config/audit-logging.php');
+        $hasPolicy = false;
 
-            return self::SUCCESS;
+        // Process audit log events
+        if ($processAll || $onlyEvents) {
+            $eventRetention = config('audit-logging.retention.delete_after');
+
+            if ($eventRetention !== null) {
+                $hasPolicy = true;
+                $this->info("Deleting audit log events older than {$eventRetention} days...");
+                $deletedEvents = $policy->runEvents();
+                $this->info("Deleted {$deletedEvents} audit log event(s).");
+            } elseif ($onlyEvents) {
+                $this->warn('No event retention policy configured. Set retention.delete_after in config/audit-logging.php');
+            }
         }
 
-        $this->info("Deleting audit logs older than {$deleteAfter} days...");
+        // Process request logs
+        if ($processAll || $onlyRequests) {
+            $requestRetention = config('audit-logging.request_log_retention.delete_after');
 
-        $deleted = $policy->run();
+            if ($requestRetention !== null) {
+                $hasPolicy = true;
+                $this->info("Deleting request logs older than {$requestRetention} days...");
+                $deletedRequests = $policy->runRequests();
+                $this->info("Deleted {$deletedRequests} request log(s).");
+            } elseif ($onlyRequests) {
+                $this->warn('No request log retention policy configured. Set request_log_retention.delete_after in config/audit-logging.php');
+            }
+        }
 
-        $this->info("Deleted {$deleted} audit log(s).");
+        if (! $hasPolicy && $processAll) {
+            $this->warn('No retention policies configured. Set delete_after values in config/audit-logging.php');
+        }
 
         return self::SUCCESS;
     }

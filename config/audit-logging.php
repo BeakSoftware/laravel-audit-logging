@@ -83,23 +83,12 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Collect Request Metadata
+    | Event Retention Policy
     |--------------------------------------------------------------------------
     |
-    | Whether to collect HTTP request metadata (IP, user agent, route, etc.)
-    | with each audit log entry.
+    | Configure how long audit log events are retained before being deleted.
     |
-    */
-    'collect_request_metadata' => true,
-
-    /*
-    |--------------------------------------------------------------------------
-    | Retention Policy
-    |--------------------------------------------------------------------------
-    |
-    | Configure how long audit logs are retained before being deleted.
-    |
-    | delete_after: Days until audit logs are deleted. Set to null to disable.
+    | delete_after: Days until audit log events are deleted. Set to null to disable.
     |
     | schedule:     Automatically schedule the retention command.
     |               Options: 'daily', 'weekly', 'monthly', or null to disable.
@@ -108,6 +97,27 @@ return [
     */
     'retention' => [
         'delete_after' => null, // e.g., 365 (days)
+        'schedule' => null,     // e.g., 'daily'
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Request Log Retention Policy
+    |--------------------------------------------------------------------------
+    |
+    | Configure how long request logs are retained before being deleted.
+    | This is separate from event retention, allowing different retention
+    | periods for requests vs audit events.
+    |
+    | delete_after: Days until request logs are deleted. Set to null to disable.
+    |
+    | schedule:     Automatically schedule the retention command.
+    |               Options: 'daily', 'weekly', 'monthly', or null to disable.
+    |               When enabled, the command runs at 3:00 AM.
+    |
+    */
+    'request_log_retention' => [
+        'delete_after' => null, // e.g., 30 (days)
         'schedule' => null,     // e.g., 'daily'
     ],
 ];

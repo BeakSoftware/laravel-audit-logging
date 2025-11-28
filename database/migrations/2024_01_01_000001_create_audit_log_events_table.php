@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('audit_logs', function (Blueprint $table) {
+        Schema::create('audit_log_events', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('event')->index();
             $table->json('message_data')->nullable();
@@ -19,7 +19,6 @@ return new class extends Migration
             $table->json('diff')->nullable();
             $table->uuid('actor_id')->nullable();
             $table->uuid('reference_id')->nullable()->index();
-            $table->json('metadata')->nullable();
             $table->timestamp('created_at', 6)->useCurrent();
             $table->string('checksum', 128)->nullable();
 
@@ -33,7 +32,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('audit_logs');
+        Schema::dropIfExists('audit_log_events');
     }
 };
-

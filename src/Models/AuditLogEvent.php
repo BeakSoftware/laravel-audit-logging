@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Lunnar\AuditLogging\Database\Factories\AuditLogFactory;
+use Lunnar\AuditLogging\Database\Factories\AuditLogEventFactory;
 
 /**
  * @property string $id
@@ -18,18 +18,19 @@ use Lunnar\AuditLogging\Database\Factories\AuditLogFactory;
  * @property array|null $diff
  * @property string|null $actor_id
  * @property string|null $reference_id
- * @property array|null $metadata
  * @property \Carbon\CarbonImmutable $created_at
  * @property string|null $checksum
  */
-class AuditLog extends Model
+class AuditLogEvent extends Model
 {
     use HasFactory, HasUuids;
 
-    protected static function newFactory(): AuditLogFactory
+    protected static function newFactory(): AuditLogEventFactory
     {
-        return AuditLogFactory::new();
+        return AuditLogEventFactory::new();
     }
+
+    protected $table = 'audit_log_events';
 
     public $incrementing = false;
 
@@ -44,7 +45,6 @@ class AuditLog extends Model
         'payload',
         'diff',
         'reference_id',
-        'metadata',
         'actor_id',
         'checksum',
     ];
@@ -62,7 +62,6 @@ class AuditLog extends Model
         'message_data' => 'json:unicode',
         'payload' => 'json:unicode',
         'diff' => 'json:unicode',
-        'metadata' => 'json:unicode',
         'created_at' => 'immutable_datetime',
     ];
 
@@ -71,7 +70,7 @@ class AuditLog extends Model
      */
     public function subjects(): HasMany
     {
-        return $this->hasMany(AuditLogSubject::class);
+        return $this->hasMany(AuditLogSubject::class, 'audit_log_id');
     }
 
     /**
@@ -80,6 +79,18 @@ class AuditLog extends Model
     public function actor(): BelongsTo
     {
         return $this->belongsTo(config('audit-logging.actor_model', 'App\\Models\\User'), 'actor_id');
+    }
+
+    /**
+     * Get the request associated with this event via reference_id.
+     */
+    public function request(): ?AuditLogRequest
+    {
+        if (! $this->reference_id) {
+            return null;
+        }
+
+        return AuditLogRequest::where('reference_id', $this->reference_id)->first();
     }
 
     /**
@@ -122,5 +133,13 @@ class AuditLog extends Model
     public function scopeForEventLike(Builder $q, string $pattern): Builder
     {
         return $q->where('event', 'like', $pattern);
+    }
+
+    /**
+     * Scope the query to only include logs for a specific reference ID.
+     */
+    public function scopeForReferenceId(Builder $q, string $referenceId): Builder
+    {
+        return $q->where('reference_id', $referenceId);
     }
 }
