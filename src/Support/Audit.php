@@ -6,7 +6,9 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Request;
+use Illuminate\Support\Str;
 use Lunnar\AuditLogging\Models\AuditLogEvent;
+use Lunnar\AuditLogging\Models\AuditLogSubject;
 
 class Audit
 {
@@ -29,8 +31,10 @@ class Audit
         ?array $diff = null,
         ?string $actorId = null,
         ?CarbonImmutable $createdAt = null,
-    ): AuditLogEvent {
+    ): void {
         $now = $createdAt ?: CarbonImmutable::now('UTC');
+        $actorId = $actorId ?? Auth::id();
+        $eventId = Str::uuid()->toString();
 
         // Compute checksum before insert
         $checksum = AuditChecksum::compute([
@@ -38,28 +42,37 @@ class Audit
             'message_data' => $messageData,
             'payload' => $payload,
             'diff' => $diff,
-            'actor_id' => $actorId ?? Auth::id(),
+            'actor_id' => $actorId,
             'subjects' => $subjects,
         ]);
 
-        return DB::transaction(function () use ($event, $subjects, $messageData, $payload, $diff, $actorId, $now, $checksum) {
+        // Sanitize and JSON encode array fields
+        $sanitizedMessageData = SensitiveDataSanitizer::sanitize($messageData);
+        $sanitizedPayload = SensitiveDataSanitizer::sanitize($payload);
+        $sanitizedDiff = SensitiveDataSanitizer::sanitize($diff);
 
-            $log = AuditLogEvent::create([
+        DB::transaction(function () use ($event, $subjects, $sanitizedMessageData, $sanitizedPayload, $sanitizedDiff, $actorId, $now, $checksum, $eventId) {
+            AuditLogEvent::insert([
+                'id' => $eventId,
                 'event' => $event,
-                'message_data' => SensitiveDataSanitizer::sanitize($messageData),
-                'payload' => SensitiveDataSanitizer::sanitize($payload),
-                'diff' => SensitiveDataSanitizer::sanitize($diff),
-                'actor_id' => $actorId ?? Auth::id(),
+                'message_data' => $sanitizedMessageData ? json_encode($sanitizedMessageData, JSON_UNESCAPED_UNICODE) : null,
+                'payload' => $sanitizedPayload ? json_encode($sanitizedPayload, JSON_UNESCAPED_UNICODE) : null,
+                'diff' => $sanitizedDiff ? json_encode($sanitizedDiff, JSON_UNESCAPED_UNICODE) : null,
+                'actor_id' => $actorId,
                 'reference_id' => Request::header('X-Lunnar-Reference-Id'),
-                'created_at' => $now,
+                'created_at' => $now->format('Y-m-d H:i:s.uP'),
                 'checksum' => $checksum,
             ]);
 
             if (! empty($subjects)) {
-                $log->subjects()->createMany($subjects);
+                AuditLogSubject::insert(array_map(fn ($s) => [
+                    'id' => Str::uuid()->toString(),
+                    'audit_log_id' => $eventId,
+                    'subject_type' => $s['subject_type'],
+                    'subject_id' => $s['subject_id'],
+                    'role' => $s['role'] ?? 'primary',
+                ], $subjects));
             }
-
-            return $log->load(['actor', 'subjects']);
         });
     }
 }

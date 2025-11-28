@@ -28,6 +28,14 @@ use ReflectionMethod;
 trait HasAuditLogging
 {
     /**
+     * Cache for BelongsTo relationship metadata per model class.
+     * Structure: [ClassName => [['foreignKey' => string, 'subjectType' => string], ...]]
+     *
+     * @var array<class-string, array<array{foreignKey: string, subjectType: string}>>
+     */
+    protected static array $belongsToCache = [];
+
+    /**
      * Boot the trait and register model event listeners.
      */
     protected static function bootHasAuditLogging(): void
@@ -303,7 +311,38 @@ trait HasAuditLogging
      */
     protected static function getAuditParentSubjects(Model $model): array
     {
+        $class = static::class;
+
+        // Build cache on first call for this model class
+        if (! isset(static::$belongsToCache[$class])) {
+            static::$belongsToCache[$class] = static::discoverBelongsToRelationships($model);
+        }
+
+        // Use cached metadata to build subjects with fresh foreign key values
         $subjects = [];
+        foreach (static::$belongsToCache[$class] as $relationship) {
+            $foreignValue = $model->getAttribute($relationship['foreignKey']);
+
+            if ($foreignValue !== null) {
+                $subjects[] = [
+                    'subject_type' => $relationship['subjectType'],
+                    'subject_id' => (string) $foreignValue,
+                    'role' => 'parent',
+                ];
+            }
+        }
+
+        return $subjects;
+    }
+
+    /**
+     * Discover BelongsTo relationships via reflection (called once per model class).
+     *
+     * @return array<array{foreignKey: string, subjectType: string}>
+     */
+    protected static function discoverBelongsToRelationships(Model $model): array
+    {
+        $relationships = [];
         $excludeParents = static::getAuditExcludeParents();
         $reflection = new ReflectionClass($model);
 
@@ -334,28 +373,16 @@ trait HasAuditLogging
                 continue;
             }
 
-            // Call the method to get the relationship
+            // Call the method to get the relationship metadata
             try {
                 $relation = $method->invoke($model);
                 if (! $relation instanceof BelongsTo) {
                     continue;
                 }
 
-                $foreignKey = $relation->getForeignKeyName();
-                $foreignValue = $model->getAttribute($foreignKey);
-
-                if ($foreignValue === null) {
-                    continue;
-                }
-
-                // Get subject type from related model
-                $relatedModel = $relation->getRelated();
-                $subjectType = static::resolveSubjectTypeForModel($relatedModel);
-
-                $subjects[] = [
-                    'subject_type' => $subjectType,
-                    'subject_id' => (string) $foreignValue,
-                    'role' => 'parent',
+                $relationships[] = [
+                    'foreignKey' => $relation->getForeignKeyName(),
+                    'subjectType' => static::resolveSubjectTypeForModel($relation->getRelated()),
                 ];
             } catch (\Throwable) {
                 // Skip if method call fails
@@ -363,7 +390,7 @@ trait HasAuditLogging
             }
         }
 
-        return $subjects;
+        return $relationships;
     }
 
     /**
