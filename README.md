@@ -10,6 +10,7 @@ Automatic audit logging for Laravel Eloquent models via a simple trait.
 - 🔐 HMAC checksum for data integrity verification
 - 📊 Rich metadata capture (IP, user agent, route, etc.)
 - 🔗 Support for multiple subjects per audit entry (e.g., parent relationships)
+- 🗑️ Configurable retention policy for automatic cleanup
 
 ## Installation
 
@@ -194,6 +195,33 @@ $isValid = AuditChecksum::verify([
     'actor_id' => $log->actor_id,
     'subjects' => $log->subjects->map->only(['subject_type', 'subject_id', 'role'])->all(),
 ], $log->checksum);
+```
+
+## Retention Policy
+
+The package includes a retention policy feature for automatically deleting old audit logs.
+
+### Configuration
+
+In `config/audit-logging.php`:
+
+```php
+'retention' => [
+    'delete_after' => 365,   // Delete logs after 1 year
+    'schedule' => 'daily',   // Automatically run daily at 3:00 AM
+],
+```
+
+Options:
+- `delete_after`: Days until logs are deleted. Set to `null` to disable.
+- `schedule`: `'daily'`, `'weekly'`, `'monthly'`, or `null` to disable automatic scheduling.
+
+### Running Manually
+
+You can also run the command manually:
+
+```bash
+php artisan audit:retention
 ```
 
 ## Configuration

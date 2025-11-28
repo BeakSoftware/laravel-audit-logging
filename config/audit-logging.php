@@ -91,5 +91,24 @@ return [
     |
     */
     'collect_request_metadata' => true,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Retention Policy
+    |--------------------------------------------------------------------------
+    |
+    | Configure how long audit logs are retained before being deleted.
+    |
+    | delete_after: Days until audit logs are deleted. Set to null to disable.
+    |
+    | schedule:     Automatically schedule the retention command.
+    |               Options: 'daily', 'weekly', 'monthly', or null to disable.
+    |               When enabled, the command runs at 3:00 AM.
+    |
+    */
+    'retention' => [
+        'delete_after' => null, // e.g., 365 (days)
+        'schedule' => null,     // e.g., 'daily'
+    ],
 ];
 

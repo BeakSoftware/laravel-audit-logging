@@ -2,8 +2,10 @@
 
 namespace Lunnar\AuditLogging;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Support\ServiceProvider;
+use Lunnar\AuditLogging\Console\Commands\ApplyRetentionPolicyCommand;
 use Lunnar\AuditLogging\Http\Middleware\EnsureReferenceId;
 
 class AuditLoggingServiceProvider extends ServiceProvider
@@ -34,5 +36,37 @@ class AuditLoggingServiceProvider extends ServiceProvider
         $this->publishesMigrations([
             __DIR__.'/../database/migrations' => database_path('migrations'),
         ], 'audit-logging-migrations');
+
+        // Register commands
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                ApplyRetentionPolicyCommand::class,
+            ]);
+
+            $this->registerScheduledTasks();
+        }
+    }
+
+    /**
+     * Register scheduled tasks for the retention policy.
+     */
+    protected function registerScheduledTasks(): void
+    {
+        $schedule = config('audit-logging.retention.schedule');
+
+        if ($schedule === null) {
+            return;
+        }
+
+        $this->callAfterResolving(Schedule::class, function (Schedule $scheduler) use ($schedule) {
+            $task = $scheduler->command('audit:retention')->at('03:00');
+
+            match ($schedule) {
+                'daily' => $task->daily(),
+                'weekly' => $task->weekly(),
+                'monthly' => $task->monthly(),
+                default => null,
+            };
+        });
     }
 }
