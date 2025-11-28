@@ -56,4 +56,24 @@ class AuditLogSubject extends Model
     {
         return $this->morphTo();
     }
+
+
+    /**
+     * Get a formatted version of the subject for display.
+     *
+     * The subject model can define a `toAuditSubject()` method to customize
+     * the data returned, including transformations.
+     */
+    public function getFormattedSubjectAttribute(): ?array
+    {
+        if (! $this->relationLoaded('subject') || ! $this->subject) {
+            return null;
+        }
+
+        if (method_exists($this->subject, 'toAuditSubject')) {
+            return $this->subject->toAuditSubject();
+        }
+
+        return null;
+    }
 }
