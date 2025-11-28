@@ -17,6 +17,9 @@ class AuditLoggingServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/audit-logging.php', 'audit-logging');
+
+        // Register LogRequest as singleton so terminate() uses the same instance as handle()
+        $this->app->singleton(LogRequest::class);
     }
 
     /**
