@@ -4,5 +4,6 @@
   "intelephense.diagnostics.undefinedMethods": false,
   "intelephense.diagnostics.undefinedProperties": false,
   "laravel-pint.enable": false,
-  "phpstan.enabled": false
+  "phpstan.enabled": false,
+  "bladeFormatter.format.enabled": false
 }

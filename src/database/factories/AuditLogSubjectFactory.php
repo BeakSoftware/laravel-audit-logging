@@ -1,24 +1,18 @@
 <?php
 
-namespace Database\Factories;
+namespace Lunnar\AuditLogging\Database\Factories;
 
-use App\Models\AuditLog;
-use App\Models\Organization;
-use App\Models\Payment;
-use App\Models\PaymentAgreement;
-use App\Models\PaymentCard;
-use App\Models\Product;
-use App\Models\ProductVariant;
-use App\Models\Receipt;
-use App\Models\Subscription;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Lunnar\AuditLogging\Models\AuditLog;
+use Lunnar\AuditLogging\Models\AuditLogSubject;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\AuditLogSubject>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\Lunnar\AuditLogging\Models\AuditLogSubject>
  */
 class AuditLogSubjectFactory extends Factory
 {
+    protected $model = AuditLogSubject::class;
+
     /**
      * Define the model's default state.
      *
@@ -26,39 +20,16 @@ class AuditLogSubjectFactory extends Factory
      */
     public function definition(): array
     {
-        $subjectTypes = [
-            'users' => User::class,
-            'organizations' => Organization::class,
-            'payments' => Payment::class,
-            'payment_agreements' => PaymentAgreement::class,
-            'payment_cards' => PaymentCard::class,
-            'subscriptions' => Subscription::class,
-            'products' => Product::class,
-            'product_variants' => ProductVariant::class,
-            'receipts' => Receipt::class,
-        ];
-
-        $subjectType = $this->faker->randomElement(array_keys($subjectTypes));
-        $subjectModel = $subjectTypes[$subjectType];
-
-        // Create a subject of the selected type
-        // Use withoutEvents for receipts to prevent notification sending
-        $subject = $subjectType === 'receipts'
-            ? $subjectModel::withoutEvents(fn () => $subjectModel::factory()->create())
-            : $subjectModel::factory()->create();
-
-        $roles = ['primary', 'parent', 'related', 'actor', 'target'];
-
         return [
             'audit_log_id' => AuditLog::factory(),
-            'subject_type' => $subjectType,
-            'subject_id' => $subject->id,
-            'role' => $this->faker->randomElement($roles),
+            'subject_type' => $this->faker->randomElement(['users', 'posts', 'comments', 'orders']),
+            'subject_id' => $this->faker->uuid(),
+            'role' => $this->faker->randomElement(['primary', 'parent', 'related', 'actor', 'target']),
         ];
     }
 
     /**
-     * Create a subject with a specific role.
+     * Set a specific role.
      */
     public function withRole(string $role): static
     {
@@ -68,36 +39,29 @@ class AuditLogSubjectFactory extends Factory
     }
 
     /**
-     * Create a subject for a specific subject type.
+     * Set a specific subject type and ID.
      */
-    public function forSubjectType(string $subjectType): static
+    public function forSubject(string $type, string $id): static
     {
-        $subjectTypes = [
-            'users' => User::class,
-            'organizations' => Organization::class,
-            'payments' => Payment::class,
-            'payment_agreements' => PaymentAgreement::class,
-            'payment_cards' => PaymentCard::class,
-            'subscriptions' => Subscription::class,
-            'products' => Product::class,
-            'product_variants' => ProductVariant::class,
-            'receipts' => Receipt::class,
-        ];
-
-        if (! isset($subjectTypes[$subjectType])) {
-            throw new \InvalidArgumentException("Invalid subject type: {$subjectType}");
-        }
-
-        $subjectModel = $subjectTypes[$subjectType];
-
         return $this->state(fn (array $attributes) => [
-            'subject_type' => $subjectType,
-            'subject_id' => $subjectModel::factory(),
+            'subject_type' => $type,
+            'subject_id' => $id,
         ]);
     }
 
     /**
-     * Create a subject for an existing audit log.
+     * Set the subject from a model instance.
+     */
+    public function forModel(object $model): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'subject_type' => $model->getMorphClass(),
+            'subject_id' => $model->getKey(),
+        ]);
+    }
+
+    /**
+     * Attach to an existing audit log.
      */
     public function forAuditLog(AuditLog $auditLog): static
     {
@@ -107,26 +71,26 @@ class AuditLogSubjectFactory extends Factory
     }
 
     /**
-     * Create a subject for an existing model instance.
+     * Create as primary subject.
      */
-    public function forSubject($subject): static
+    public function primary(): static
     {
-        $subjectType = match (get_class($subject)) {
-            User::class => 'users',
-            Organization::class => 'organizations',
-            Payment::class => 'payments',
-            PaymentAgreement::class => 'payment_agreements',
-            PaymentCard::class => 'payment_cards',
-            Subscription::class => 'subscriptions',
-            Product::class => 'products',
-            ProductVariant::class => 'product_variants',
-            Receipt::class => 'receipts',
-            default => throw new \InvalidArgumentException('Unsupported subject type: '.get_class($subject)),
-        };
+        return $this->withRole('primary');
+    }
 
-        return $this->state(fn (array $attributes) => [
-            'subject_type' => $subjectType,
-            'subject_id' => $subject->id,
-        ]);
+    /**
+     * Create as parent subject.
+     */
+    public function parent(): static
+    {
+        return $this->withRole('parent');
+    }
+
+    /**
+     * Create as related subject.
+     */
+    public function related(): static
+    {
+        return $this->withRole('related');
     }
 }

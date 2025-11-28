@@ -3,9 +3,11 @@
 namespace Lunnar\AuditLogging\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Lunnar\AuditLogging\Database\Factories\AuditLogSubjectFactory;
 
 /**
  * @property string $id
@@ -16,7 +18,12 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  */
 class AuditLogSubject extends Model
 {
-    use HasUuids;
+    use HasFactory, HasUuids;
+
+    protected static function newFactory(): AuditLogSubjectFactory
+    {
+        return AuditLogSubjectFactory::new();
+    }
 
     public $incrementing = false;
 

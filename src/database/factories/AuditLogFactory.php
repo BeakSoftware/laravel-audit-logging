@@ -1,17 +1,17 @@
 <?php
 
-namespace Database\Factories;
+namespace Lunnar\AuditLogging\Database\Factories;
 
-use App\Models\Product;
-use App\Models\ProductVariant;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Lunnar\AuditLogging\Models\AuditLog;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\AuditLog>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\Lunnar\AuditLogging\Models\AuditLog>
  */
 class AuditLogFactory extends Factory
 {
+    protected $model = AuditLog::class;
+
     /**
      * Define the model's default state.
      *
@@ -19,125 +19,144 @@ class AuditLogFactory extends Factory
      */
     public function definition(): array
     {
-        // Ensure we have at least two users to work with
-        $user = User::all()->random();
-
         $event = $this->faker->randomElement([
-            'user.created',
-            'user.updated',
-            'user.deleted',
-            'product.created',
-            'product.updated',
-            'product.deleted',
-            'product_variant.created',
-            'product_variant.updated',
-            'product_variant.deleted',
+            'resource.created',
+            'resource.updated',
+            'resource.deleted',
+            'user.login',
+            'user.logout',
+            'settings.changed',
         ]);
-
-        $messageData = match ($event) {
-            'user.created' => ['name' => $this->faker->name(), 'email' => $this->faker->email()],
-            'user.updated' => ['field' => $this->faker->randomElement(['name', 'email', 'phone', 'address'])],
-            'user.deleted' => ['name' => $this->faker->name()],
-            'product.created' => ['name' => $this->faker->word()],
-            'product.updated' => ['field' => $this->faker->randomElement(['name', 'description', 'price'])],
-            'product.deleted' => ['name' => $this->faker->word()],
-            'product_variant.created' => ['name' => $this->faker->word()],
-            'product_variant.updated' => ['field' => $this->faker->randomElement(['name', 'sku', 'price'])],
-            'product_variant.deleted' => ['name' => $this->faker->word()],
-            default => [],
-        };
-
-        $diff = $this->faker->randomElement([
-            null,
-            [
-                'before' => ['name' => $this->faker->word()],
-                'after' => ['name' => $this->faker->word()],
-            ],
-            [
-                'before' => ['email' => $this->faker->email()],
-                'after' => ['email' => $this->faker->email()],
-            ],
-        ]);
-
-        $payload = match ($event) {
-            'user.created', 'user.deleted' => [
-                'name' => $this->faker->name(),
-                'email' => $this->faker->email(),
-                'phone' => $this->faker->phoneNumber(),
-                'language' => $this->faker->languageCode(),
-            ],
-            'product.created', 'product.deleted' => [
-                'name' => $this->faker->word(),
-                'description' => $this->faker->sentence(),
-                'price' => $this->faker->randomFloat(2, 10, 1000),
-            ],
-            'product_variant.created', 'product_variant.deleted' => [
-                'name' => $this->faker->word(),
-                'sku' => $this->faker->uuid(),
-                'price' => $this->faker->randomFloat(2, 10, 1000),
-            ],
-            default => null,
-        };
 
         return [
             'event' => $event,
-            'message_data' => $messageData,
-            'payload' => $payload,
-            'diff' => $diff,
+            'message_data' => $this->generateMessageData($event),
+            'payload' => $this->generatePayload($event),
+            'diff' => $this->faker->optional(0.5)->passthrough($this->generateDiff()),
             'metadata' => [
                 'ip' => $this->faker->ipv4(),
                 'ua' => $this->faker->userAgent(),
             ],
-            'actor_id' => $user->id,
+            'actor_id' => $this->faker->uuid(),
             'checksum' => hash('sha256', $this->faker->uuid()),
         ];
     }
 
     /**
-     * Configure the model factory.
+     * Generate message data based on event type.
      */
-    public function configure(): static
+    protected function generateMessageData(string $event): array
     {
-        return $this->afterCreating(function ($auditLog) {
-            $user = User::all()->random();
-            $product = Product::all()->random();
-            $productVariant = ProductVariant::all()->random();
+        return match (true) {
+            str_ends_with($event, '.created') => ['name' => $this->faker->word()],
+            str_ends_with($event, '.updated') => ['field' => $this->faker->word()],
+            str_ends_with($event, '.deleted') => ['name' => $this->faker->word()],
+            default => [],
+        };
+    }
 
-            $subjects = [];
+    /**
+     * Generate payload based on event type.
+     */
+    protected function generatePayload(string $event): ?array
+    {
+        if (str_ends_with($event, '.updated')) {
+            return null;
+        }
 
-            // Add primary subject based on event type
-            if (str_starts_with($auditLog->event, 'user.')) {
-                $subjects[] = [
-                    'audit_log_id' => $auditLog->id,
-                    'subject_type' => 'users',
-                    'subject_id' => (string) $user->id,
-                    'role' => 'primary',
-                ];
-            } elseif (str_starts_with($auditLog->event, 'product_variant.')) {
-                $subjects[] = [
-                    'audit_log_id' => $auditLog->id,
-                    'subject_type' => 'product_variants',
-                    'subject_id' => (string) $productVariant->id,
-                    'role' => 'primary',
-                ];
-                $subjects[] = [
-                    'audit_log_id' => $auditLog->id,
-                    'subject_type' => 'products',
-                    'subject_id' => (string) $product->id,
-                    'role' => 'parent',
-                ];
-            } elseif (str_starts_with($auditLog->event, 'product.')) {
-                $subjects[] = [
-                    'audit_log_id' => $auditLog->id,
-                    'subject_type' => 'products',
-                    'subject_id' => (string) $product->id,
-                    'role' => 'primary',
-                ];
-            }
+        return [
+            'name' => $this->faker->word(),
+            'description' => $this->faker->sentence(),
+        ];
+    }
 
-            // Create the audit log subjects
+    /**
+     * Generate a diff array.
+     */
+    protected function generateDiff(): array
+    {
+        $field = $this->faker->randomElement(['name', 'status', 'description']);
+
+        return [
+            'before' => [$field => $this->faker->word()],
+            'after' => [$field => $this->faker->word()],
+        ];
+    }
+
+    /**
+     * Set a specific event.
+     */
+    public function withEvent(string $event): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'event' => $event,
+        ]);
+    }
+
+    /**
+     * Set a specific actor ID.
+     */
+    public function withActor(string $actorId): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'actor_id' => $actorId,
+        ]);
+    }
+
+    /**
+     * Set specific metadata.
+     */
+    public function withMetadata(array $metadata): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'metadata' => $metadata,
+        ]);
+    }
+
+    /**
+     * Set specific payload.
+     */
+    public function withPayload(?array $payload): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'payload' => $payload,
+        ]);
+    }
+
+    /**
+     * Set specific diff.
+     */
+    public function withDiff(?array $diff): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'diff' => $diff,
+        ]);
+    }
+
+    /**
+     * Create without a checksum.
+     */
+    public function withoutChecksum(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'checksum' => null,
+        ]);
+    }
+
+    /**
+     * Create a log with subjects attached.
+     *
+     * @param  array<array{type: string, id: string, role?: string}>  $subjects
+     */
+    public function withSubjects(array $subjects): static
+    {
+        return $this->afterCreating(function (AuditLog $auditLog) use ($subjects) {
             foreach ($subjects as $subject) {
-                $auditLog->subjects()->create($subject);
+                $auditLog->subjects()->create([
+                    'subject_type' => $subject['type'],
+                    'subject_id' => $subject['id'],
+                    'role' => $subject['role'] ?? 'primary',
+                ]);
             }
         });
     }
