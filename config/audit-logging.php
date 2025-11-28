@@ -88,12 +88,16 @@ return [
     |
     | Configure HTTP request logging behavior.
     |
+    | enabled:            Enable or disable request logging entirely.
+    |                     Set to false to disable all request logging.
+    |
     | only_authenticated: When true, only log requests from authenticated users.
     |                     This helps filter out bot traffic and unauthenticated
     |                     requests. Set to false to log all requests.
     |
     */
     'request_logging' => [
+        'enabled' => true,
         'only_authenticated' => false,
     ],
 

@@ -28,6 +28,11 @@ class LogRequest
     {
         $this->startTime = microtime(true);
 
+        // Skip logging if request logging is disabled
+        if (! config('audit-logging.request_logging.enabled', true)) {
+            return $next($request);
+        }
+
         // Skip logging if only_authenticated is enabled and no user is logged in
         if (config('audit-logging.request_logging.only_authenticated', false) && Auth::id() === null) {
             return $next($request);
