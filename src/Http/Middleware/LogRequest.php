@@ -49,9 +49,9 @@ class LogRequest
             'session_id' => $request->hasSession() ? $request->session()->getId() : null,
             'actor_id' => Auth::id(),
             'reference_id' => $request->header('X-Lunnar-Reference-Id'),
-            'request_headers' => $this->sanitizeHeaders($request->headers->all()),
-            'request_query' => $this->getRequestQuery($request),
-            'request_body' => $this->getRequestBody($request),
+            'request_headers' => $this->encodeJson($this->sanitizeHeaders($request->headers->all())),
+            'request_query' => $this->encodeJson($this->getRequestQuery($request)),
+            'request_body' => $this->encodeJson($this->getRequestBody($request)),
         ]);
 
         return $next($request);
@@ -73,7 +73,7 @@ class LogRequest
             ->update([
                 'status_code' => $response->getStatusCode(),
                 'duration_ms' => round($durationMs, 2),
-                'response_body' => $this->getResponseBody($response),
+                'response_body' => $this->encodeJson($this->getResponseBody($response)),
             ]);
     }
 
@@ -171,5 +171,17 @@ class LogRequest
         }
 
         return SensitiveDataSanitizer::sanitize($decoded);
+    }
+
+    /**
+     * Encode a value to JSON for storage, preserving unicode characters.
+     */
+    protected function encodeJson(?array $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return json_encode($value, JSON_UNESCAPED_UNICODE);
     }
 }
