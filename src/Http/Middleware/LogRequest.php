@@ -39,6 +39,12 @@ class LogRequest
             return $next($request);
         }
 
+        // Skip logging if the request method is in the exclude list
+        $excludeMethods = config('audit-logging.request_logging.exclude_methods', []);
+        if (in_array(strtoupper($request->method()), array_map('strtoupper', $excludeMethods))) {
+            return $next($request);
+        }
+
         // Log request immediately so it's captured even if the request crashes
         $this->logRecordId = (string) Str::uuid();
 

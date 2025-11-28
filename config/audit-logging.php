@@ -95,10 +95,15 @@ return [
     |                     This helps filter out bot traffic and unauthenticated
     |                     requests. Set to false to log all requests.
     |
+    | exclude_methods:    HTTP methods to exclude from logging. Useful for
+    |                     excluding read-only requests like GET.
+    |                     Example: ['GET', 'HEAD', 'OPTIONS']
+    |
     */
     'request_logging' => [
         'enabled' => true,
         'only_authenticated' => false,
+        'exclude_methods' => ['GET', 'HEAD', 'OPTIONS'],
     ],
 
     /*
