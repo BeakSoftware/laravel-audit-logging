@@ -10,8 +10,9 @@ Automatic audit logging for Laravel Eloquent models via a simple trait.
 - 🔒 Automatic sanitization of sensitive data (passwords, tokens, etc.)
 - 🔐 HMAC checksum for data integrity verification
 - 📡 HTTP request logging with full request/response capture
+- 📤 Outgoing HTTP request logging (Laravel HTTP client)
 - 🔍 Request tracing via `reference_id` linking requests to audit events
-- 🗑️ Separate configurable retention policies for events and requests
+- 🗑️ Separate configurable retention policies for events, requests, and outgoing requests
 
 ## Installation
 
@@ -69,9 +70,9 @@ class Product extends Model
 
 That's it! Now all create, update, and delete operations on `Product` will be automatically logged.
 
-## Configuration Options
+## Model Configuration
 
-All configuration is done via static properties on your model:
+Per-model configuration is done via static properties:
 
 | Property                   | Type     | Default                                            | Description                                                        |
 | -------------------------- | -------- | -------------------------------------------------- | ------------------------------------------------------------------ |
@@ -310,20 +311,84 @@ $request = AuditLogRequest::first();
 $events = $request->events(); // Returns Collection of AuditLogEvent
 ```
 
+## Outgoing Request Logging
+
+All outgoing HTTP requests made via Laravel's HTTP client (`Http` facade) are automatically logged. This is useful for tracking API calls to external services.
+
+### Configuration
+
+In `config/audit-logging.php`:
+
+```php
+'outgoing_request_logging' => [
+    'enabled' => true,
+    'exclude_urls' => [
+        'https://api.example.com/health*',  // Exclude health checks
+        '*localhost*',                       // Exclude local requests
+    ],
+],
+```
+
+The `exclude_urls` option supports wildcard patterns using `*`.
+
+### Querying Outgoing Request Logs
+
+```php
+use Lunnar\AuditLogging\Models\AuditLogOutgoingRequest;
+
+// Get all outgoing requests for a specific reference ID
+$requests = AuditLogOutgoingRequest::forReferenceId($referenceId)->get();
+
+// Get all outgoing requests matching a URL pattern
+$requests = AuditLogOutgoingRequest::forUrl('api.stripe.com')->get();
+
+// Get all outgoing requests with a specific HTTP method
+$requests = AuditLogOutgoingRequest::forMethod('POST')->get();
+
+// Get all failed outgoing requests (4xx, 5xx, or connection errors)
+$requests = AuditLogOutgoingRequest::failed()->get();
+
+// Get all successful outgoing requests (2xx)
+$requests = AuditLogOutgoingRequest::successful()->get();
+
+// Get the audit events associated with an outgoing request (via reference_id)
+$request = AuditLogOutgoingRequest::first();
+$events = $request->events(); // Returns Collection of AuditLogEvent
+```
+
+### Linking Outgoing Requests to Incoming Requests
+
+Outgoing requests are automatically linked to the incoming HTTP request via `reference_id`. This allows you to trace which external API calls were made during a specific user request:
+
+```php
+$referenceId = '550e8400-e29b-41d4-a716-446655440000';
+
+// Get the incoming request
+$incomingRequest = AuditLogRequest::forReferenceId($referenceId)->first();
+
+// Get all outgoing requests made during that request
+$outgoingRequests = AuditLogOutgoingRequest::forReferenceId($referenceId)->get();
+
+// Get all audit events
+$events = AuditLogEvent::forReferenceId($referenceId)->get();
+```
+
 ## Request Tracing
 
 Every HTTP request is assigned a unique `reference_id` (via the `X-Lunnar-Reference-Id` header). This ID links:
 
-- The HTTP request in `audit_log_requests`
+- The incoming HTTP request in `audit_log_requests`
+- All outgoing HTTP requests in `audit_log_outgoing_requests`
 - All audit events triggered during that request in `audit_log_events`
 
-This enables full traceability from a single request to all database changes it caused.
+This enables full traceability from a single request to all database changes and external API calls it caused.
 
 ```php
-// Find all changes made during a specific request
+// Find all activity during a specific request
 $referenceId = '550e8400-e29b-41d4-a716-446655440000';
 
-$request = AuditLogRequest::forReferenceId($referenceId)->first();
+$incomingRequest = AuditLogRequest::forReferenceId($referenceId)->first();
+$outgoingRequests = AuditLogOutgoingRequest::forReferenceId($referenceId)->get();
 $events = AuditLogEvent::forReferenceId($referenceId)->get();
 
 // Or from an event, get the original request
@@ -351,7 +416,7 @@ $isValid = AuditChecksum::verify([
 
 ## Retention Policy
 
-The package includes separate retention policies for audit log events and request logs, allowing different retention periods for each.
+The package includes separate retention policies for audit log events, request logs, and outgoing request logs, allowing different retention periods for each.
 
 ### Configuration
 
@@ -369,6 +434,12 @@ In `config/audit-logging.php`:
     'delete_after' => 30,    // Delete request logs after 30 days
     'schedule' => 'daily',   // Automatically run daily at 3:15 AM
 ],
+
+// Outgoing request logs retention
+'outgoing_request_log_retention' => [
+    'delete_after' => 30,    // Delete outgoing request logs after 30 days
+    'schedule' => 'daily',   // Automatically run daily at 3:30 AM
+],
 ```
 
 Options for each:
@@ -378,7 +449,7 @@ Options for each:
 ### Running Manually
 
 ```bash
-# Run both retention policies
+# Run all retention policies
 php artisan audit:retention
 
 # Only process audit log events
@@ -386,9 +457,12 @@ php artisan audit:retention --events
 
 # Only process request logs
 php artisan audit:retention --requests
+
+# Only process outgoing request logs
+php artisan audit:retention --outgoing-requests
 ```
 
-## Configuration
+## Config File Reference
 
 Publish the config file to customize defaults:
 
@@ -396,7 +470,26 @@ Publish the config file to customize defaults:
 php artisan vendor:publish --tag=audit-logging-config
 ```
 
-See `config/audit-logging.php` for all available options.
+### All Options
+
+| Option | Type | Default | Description |
+| ------ | ---- | ------- | ----------- |
+| `audit_key` | `string` | `env('AUDIT_KEY')` | HMAC key for checksum integrity verification |
+| `default_exclude` | `array` | `['id', 'created_at', ...]` | Fields excluded from audit payload by default |
+| `default_ignore_changes` | `array` | `['updated_at']` | Fields ignored when detecting changes |
+| `sensitive_fields` | `array` | `['password', 'token', ...]` | Field patterns to redact (case-insensitive) |
+| `actor_model` | `string` | `App\Models\User` | Model class for actor relationships |
+| `request_logging.enabled` | `bool` | `true` | Enable/disable incoming request logging |
+| `request_logging.only_authenticated` | `bool` | `false` | Only log requests from authenticated users |
+| `request_logging.exclude_methods` | `array` | `['GET', 'HEAD', 'OPTIONS']` | HTTP methods to exclude from logging |
+| `outgoing_request_logging.enabled` | `bool` | `true` | Enable/disable outgoing request logging |
+| `outgoing_request_logging.exclude_urls` | `array` | `[]` | URL patterns to exclude (supports `*` wildcards) |
+| `retention.delete_after` | `int\|null` | `null` | Days until audit events are deleted |
+| `retention.schedule` | `string\|null` | `null` | Auto-schedule: `'daily'`, `'weekly'`, `'monthly'` |
+| `request_log_retention.delete_after` | `int\|null` | `null` | Days until request logs are deleted |
+| `request_log_retention.schedule` | `string\|null` | `null` | Auto-schedule: `'daily'`, `'weekly'`, `'monthly'` |
+| `outgoing_request_log_retention.delete_after` | `int\|null` | `null` | Days until outgoing request logs are deleted |
+| `outgoing_request_log_retention.schedule` | `string\|null` | `null` | Auto-schedule: `'daily'`, `'weekly'`, `'monthly'` |
 
 ## License
 
