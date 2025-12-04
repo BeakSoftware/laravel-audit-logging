@@ -14,14 +14,15 @@ class ApplyRetentionPolicyCommand extends Command
      */
     protected $signature = 'audit:retention
                             {--events : Only process audit log events}
-                            {--requests : Only process request logs}';
+                            {--requests : Only process request logs}
+                            {--outgoing-requests : Only process outgoing request logs}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Delete old audit logs and request logs based on the configured retention policies';
+    protected $description = 'Delete old audit logs, request logs, and outgoing request logs based on the configured retention policies';
 
     /**
      * Execute the console command.
@@ -30,7 +31,8 @@ class ApplyRetentionPolicyCommand extends Command
     {
         $onlyEvents = $this->option('events');
         $onlyRequests = $this->option('requests');
-        $processAll = ! $onlyEvents && ! $onlyRequests;
+        $onlyOutgoingRequests = $this->option('outgoing-requests');
+        $processAll = ! $onlyEvents && ! $onlyRequests && ! $onlyOutgoingRequests;
 
         $hasPolicy = false;
 
@@ -59,6 +61,20 @@ class ApplyRetentionPolicyCommand extends Command
                 $this->info("Deleted {$deletedRequests} request log(s).");
             } elseif ($onlyRequests) {
                 $this->warn('No request log retention policy configured. Set request_log_retention.delete_after in config/audit-logging.php');
+            }
+        }
+
+        // Process outgoing request logs
+        if ($processAll || $onlyOutgoingRequests) {
+            $outgoingRetention = config('audit-logging.outgoing_request_log_retention.delete_after');
+
+            if ($outgoingRetention !== null) {
+                $hasPolicy = true;
+                $this->info("Deleting outgoing request logs older than {$outgoingRetention} days...");
+                $deletedOutgoing = $policy->runOutgoingRequests();
+                $this->info("Deleted {$deletedOutgoing} outgoing request log(s).");
+            } elseif ($onlyOutgoingRequests) {
+                $this->warn('No outgoing request log retention policy configured. Set outgoing_request_log_retention.delete_after in config/audit-logging.php');
             }
         }
 

@@ -5,6 +5,7 @@ namespace Lunnar\AuditLogging\Support;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Lunnar\AuditLogging\Models\AuditLogEvent;
+use Lunnar\AuditLogging\Models\AuditLogOutgoingRequest;
 use Lunnar\AuditLogging\Models\AuditLogRequest;
 
 class RetentionPolicy
@@ -23,6 +24,14 @@ class RetentionPolicy
     public function runRequests(): int
     {
         return $this->deleteRequests();
+    }
+
+    /**
+     * Run the retention policy for outgoing request logs.
+     */
+    public function runOutgoingRequests(): int
+    {
+        return $this->deleteOutgoingRequests();
     }
 
     /**
@@ -82,6 +91,35 @@ class RetentionPolicy
 
         do {
             $count = AuditLogRequest::query()
+                ->where('created_at', '<', $threshold)
+                ->limit($chunkSize)
+                ->delete();
+
+            $deleted += $count;
+        } while ($count === $chunkSize);
+
+        return $deleted;
+    }
+
+    /**
+     * Delete outgoing request logs older than the configured threshold.
+     */
+    public function deleteOutgoingRequests(): int
+    {
+        $days = config('audit-logging.outgoing_request_log_retention.delete_after');
+
+        if ($days === null) {
+            return 0;
+        }
+
+        $threshold = CarbonImmutable::now()->subDays($days);
+
+        // Delete in chunks to avoid memory issues
+        $deleted = 0;
+        $chunkSize = 1000;
+
+        do {
+            $count = AuditLogOutgoingRequest::query()
                 ->where('created_at', '<', $threshold)
                 ->limit($chunkSize)
                 ->delete();

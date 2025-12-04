@@ -145,5 +145,46 @@ return [
         'delete_after' => null, // e.g., 30 (days)
         'schedule' => null,     // e.g., 'daily'
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Outgoing Request Logging
+    |--------------------------------------------------------------------------
+    |
+    | Configure outgoing HTTP request logging behavior. This logs all requests
+    | made using Laravel's HTTP client (Http facade / Illuminate\Http\Client).
+    |
+    | enabled:      Enable or disable outgoing request logging entirely.
+    |               Set to false to disable all outgoing request logging.
+    |
+    | exclude_urls: URL patterns to exclude from logging. Supports wildcards.
+    |               Example: ['https://api.example.com/*', '*health-check*']
+    |
+    */
+    'outgoing_request_logging' => [
+        'enabled' => true,
+        'exclude_urls' => [],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Outgoing Request Log Retention Policy
+    |--------------------------------------------------------------------------
+    |
+    | Configure how long outgoing request logs are retained before being deleted.
+    | This is separate from other retention policies, allowing different retention
+    | periods for outgoing requests.
+    |
+    | delete_after: Days until outgoing request logs are deleted. Set to null to disable.
+    |
+    | schedule:     Automatically schedule the retention command.
+    |               Options: 'daily', 'weekly', 'monthly', or null to disable.
+    |               When enabled, the command runs at 3:30 AM.
+    |
+    */
+    'outgoing_request_log_retention' => [
+        'delete_after' => null, // e.g., 30 (days)
+        'schedule' => null,     // e.g., 'daily'
+    ],
 ];
 
