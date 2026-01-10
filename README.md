@@ -1,6 +1,6 @@
 # Laravel Audit Logging
 
-Automatic audit logging for Laravel Eloquent models via a simple trait.
+Comprehensive audit logging for Laravel: model events, HTTP requests, outgoing API calls, and request tracing with integrity verification.
 
 ## Features
 
