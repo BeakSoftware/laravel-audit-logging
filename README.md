@@ -211,6 +211,53 @@ class Role extends Model
 }
 ```
 
+### Customizing Subject Display
+
+When retrieving audit log subjects, you can customize how each subject model is formatted for display by implementing a `toAuditSubject()` method on your model:
+
+```php
+class User extends Model
+{
+    use HasAuditLogging;
+
+    /**
+     * Customize how this model appears in audit log subject displays.
+     */
+    public function toAuditSubject(): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'email' => $this->email_masked, // Use masked email for privacy
+            'avatar_url' => $this->avatar_url,
+        ];
+    }
+}
+```
+
+Access the formatted subject via the `formatted_subject` attribute on `AuditLogSubject`:
+
+```php
+use Lunnar\AuditLogging\Models\AuditLogEvent;
+
+$event = AuditLogEvent::with('subjects.subject')->first();
+
+foreach ($event->subjects as $subject) {
+    // Returns the result of toAuditSubject() if defined, null otherwise
+    $formatted = $subject->formatted_subject;
+    
+    if ($formatted) {
+        echo "User: {$formatted['name']} ({$formatted['email']})";
+    }
+}
+```
+
+This is useful for:
+- Hiding sensitive data (e.g., masked emails, partial phone numbers)
+- Including computed attributes or accessors
+- Providing a consistent display format across your application
+- Avoiding exposing internal model structure to API consumers
+
 ## Temporarily Disable Logging
 
 ```php
