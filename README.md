@@ -13,6 +13,7 @@ Comprehensive audit logging for Laravel: model events, HTTP requests, outgoing A
 - 📤 Outgoing HTTP request logging (Laravel HTTP client)
 - 🔍 Request tracing via `reference_id` linking requests to audit events
 - 🗑️ Separate configurable retention policies for events, requests, and outgoing requests
+- 👁️ Event levels for visibility control (show different events to different user types)
 
 ## Installation
 
@@ -227,7 +228,87 @@ Audit::write(
     ],
     messageData: ['email' => $user->email],
     payload: ['reset_method' => 'email'],
+    level: 50, // Optional: set visibility level
 );
+```
+
+## Event Levels
+
+Event levels allow you to control the visibility of audit log entries based on viewer permissions. This is useful when you want to show different events to different user types (e.g., end-users, organization owners, developers).
+
+### How It Works
+
+Each audit event has a `level` field (integer, 0-255). Lower levels are more visible, higher levels are more restricted. When not specified, events default to level `0` (configurable via `default_level`).
+
+### Defining Your Level Scheme
+
+Define your own level constants in your application based on your needs:
+
+```php
+// app/Enums/AuditLevel.php
+class AuditLevel
+{
+    public const USER = 0;       // Visible to end-users
+    public const OWNER = 50;     // Visible to organization owners
+    public const DEVELOPER = 100; // Visible to developers/admins
+}
+```
+
+### Writing Events with Levels
+
+```php
+use Lunnar\AuditLogging\Support\Audit;
+use App\Enums\AuditLevel;
+
+// User-visible event (level 0)
+Audit::write(
+    event: 'document.downloaded',
+    subjects: [...],
+    level: AuditLevel::USER,
+);
+
+// Owner-visible event (level 50)
+Audit::write(
+    event: 'subscription.renewed',
+    subjects: [...],
+    level: AuditLevel::OWNER,
+);
+
+// Developer-only event (level 100)
+Audit::write(
+    event: 'cache.cleared',
+    subjects: [...],
+    level: AuditLevel::DEVELOPER,
+);
+```
+
+### Querying by Level
+
+Use the `forLevel()` scope to filter events based on the viewer's permission level:
+
+```php
+use Lunnar\AuditLogging\Models\AuditLogEvent;
+use App\Enums\AuditLevel;
+
+// End-user sees only level 0 events
+$userEvents = AuditLogEvent::forLevel(AuditLevel::USER)->get();
+
+// Organization owner sees level 0-50 events
+$ownerEvents = AuditLogEvent::forLevel(AuditLevel::OWNER)->get();
+
+// Developer sees all events (level 0-100)
+$allEvents = AuditLogEvent::forLevel(AuditLevel::DEVELOPER)->get();
+
+// Get events at exactly a specific level
+$ownerOnlyEvents = AuditLogEvent::atLevel(AuditLevel::OWNER)->get();
+```
+
+### Configuration
+
+Set the default level for events in `config/audit-logging.php`:
+
+```php
+'default_level' => 0, // Events without explicit level get this value
 ```
 
 ## Querying Audit Log Events
@@ -249,6 +330,12 @@ $events = AuditLogEvent::forEventLike('product.%')->get();
 
 // Get all events for a specific request (via reference_id)
 $events = AuditLogEvent::forReferenceId($referenceId)->get();
+
+// Get events at or below a specific level (for visibility filtering)
+$events = AuditLogEvent::forLevel(50)->get();
+
+// Get events at exactly a specific level
+$events = AuditLogEvent::atLevel(50)->get();
 
 // Get the HTTP request associated with an event
 $event = AuditLogEvent::first();
@@ -411,6 +498,7 @@ $isValid = AuditChecksum::verify([
     'diff' => $event->diff,
     'actor_id' => $event->actor_id,
     'subjects' => $event->subjects->map->only(['subject_type', 'subject_id', 'role'])->all(),
+    'level' => $event->level,
 ], $event->checksum);
 ```
 
@@ -479,6 +567,7 @@ php artisan vendor:publish --tag=audit-logging-config
 | `default_ignore_changes` | `array` | `['updated_at']` | Fields ignored when detecting changes |
 | `sensitive_fields` | `array` | `['password', 'token', ...]` | Field patterns to redact (case-insensitive) |
 | `actor_model` | `string` | `App\Models\User` | Model class for actor relationships |
+| `default_level` | `int` | `0` | Default event level when not explicitly specified |
 | `request_logging.enabled` | `bool` | `true` | Enable/disable incoming request logging |
 | `request_logging.only_authenticated` | `bool` | `false` | Only log requests from authenticated users |
 | `request_logging.exclude_methods` | `array` | `['GET', 'HEAD', 'OPTIONS']` | HTTP methods to exclude from logging |

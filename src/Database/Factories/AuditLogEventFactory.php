@@ -30,6 +30,7 @@ class AuditLogEventFactory extends Factory
 
         return [
             'event' => $event,
+            'level' => $this->faker->numberBetween(0, 100),
             'message_data' => $this->generateMessageData($event),
             'payload' => $this->generatePayload($event),
             'diff' => $this->faker->optional(0.5)->passthrough($this->generateDiff()),
@@ -137,6 +138,16 @@ class AuditLogEventFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'checksum' => null,
+        ]);
+    }
+
+    /**
+     * Set a specific level.
+     */
+    public function withLevel(int $level): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'level' => $level,
         ]);
     }
 

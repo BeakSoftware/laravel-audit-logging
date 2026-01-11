@@ -14,6 +14,7 @@ use Lunnar\AuditLogging\Database\Factories\AuditLogEventFactory;
 /**
  * @property string $id
  * @property string $event
+ * @property int $level
  * @property array|null $message_data
  * @property array|null $payload
  * @property array|null $diff
@@ -42,6 +43,7 @@ class AuditLogEvent extends Model
      */
     protected $fillable = [
         'event',
+        'level',
         'message_data',
         'payload',
         'diff',
@@ -60,6 +62,7 @@ class AuditLogEvent extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'level' => 'integer',
         'message_data' => 'json:unicode',
         'payload' => 'json:unicode',
         'diff' => 'json:unicode',
@@ -138,5 +141,24 @@ class AuditLogEvent extends Model
     public function scopeForReferenceId(Builder $q, string $referenceId): Builder
     {
         return $q->where('reference_id', $referenceId);
+    }
+
+    /**
+     * Scope the query to only include logs at or below a specific level.
+     *
+     * Use this to filter events based on viewer permissions.
+     * Lower levels are more visible, higher levels are more restricted.
+     */
+    public function scopeForLevel(Builder $q, int $maxLevel): Builder
+    {
+        return $q->where('level', '<=', $maxLevel);
+    }
+
+    /**
+     * Scope the query to only include logs at exactly a specific level.
+     */
+    public function scopeAtLevel(Builder $q, int $level): Builder
+    {
+        return $q->where('level', $level);
     }
 }

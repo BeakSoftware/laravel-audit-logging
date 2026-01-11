@@ -83,6 +83,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Event Levels
+    |--------------------------------------------------------------------------
+    |
+    | Event levels control the visibility of audit log entries. Use levels to
+    | show different events to different user types. Define your own level
+    | scheme based on your application's needs.
+    |
+    | When querying, use forLevel() scope to filter events at or below a level.
+    | Lower levels are more visible, higher levels are more restricted.
+    |
+    | Example scheme:
+    |   0   = Events visible to end-users
+    |   50  = Events visible to organization owners
+    |   100 = Events visible to developers/admins
+    |
+    | default_level: The level assigned to events when not explicitly specified.
+    |
+    */
+    'default_level' => 0,
+
+    /*
+    |--------------------------------------------------------------------------
     | Request Logging
     |--------------------------------------------------------------------------
     |

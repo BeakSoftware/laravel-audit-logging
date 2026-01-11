@@ -22,6 +22,7 @@ class Audit
      * @param  array|null  $diff  The diff data for update events
      * @param  string|null  $actorId  Override the actor ID (defaults to authenticated user)
      * @param  CarbonImmutable|null  $createdAt  Override the timestamp
+     * @param  int|null  $level  The visibility level for filtering events. Defaults to config value.
      */
     public static function write(
         string $event,
@@ -31,10 +32,12 @@ class Audit
         ?array $diff = null,
         ?string $actorId = null,
         ?CarbonImmutable $createdAt = null,
+        ?int $level = null,
     ): void {
         $now = $createdAt ?: CarbonImmutable::now('UTC');
         $actorId = $actorId ?? Auth::id();
         $eventId = Str::uuid()->toString();
+        $level = $level ?? config('audit-logging.default_level', 0);
 
         // Compute checksum before insert
         $checksum = AuditChecksum::compute([
@@ -44,6 +47,7 @@ class Audit
             'diff' => $diff,
             'actor_id' => $actorId,
             'subjects' => $subjects,
+            'level' => $level,
         ]);
 
         // Sanitize and JSON encode array fields
@@ -51,10 +55,11 @@ class Audit
         $sanitizedPayload = SensitiveDataSanitizer::sanitize($payload);
         $sanitizedDiff = SensitiveDataSanitizer::sanitize($diff);
 
-        DB::transaction(function () use ($event, $subjects, $sanitizedMessageData, $sanitizedPayload, $sanitizedDiff, $actorId, $now, $checksum, $eventId) {
+        DB::transaction(function () use ($event, $subjects, $sanitizedMessageData, $sanitizedPayload, $sanitizedDiff, $actorId, $now, $checksum, $eventId, $level) {
             AuditLogEvent::insert([
                 'id' => $eventId,
                 'event' => $event,
+                'level' => $level,
                 'message_data' => $sanitizedMessageData ? json_encode($sanitizedMessageData, JSON_UNESCAPED_UNICODE) : null,
                 'payload' => $sanitizedPayload ? json_encode($sanitizedPayload, JSON_UNESCAPED_UNICODE) : null,
                 'diff' => $sanitizedDiff ? json_encode($sanitizedDiff, JSON_UNESCAPED_UNICODE) : null,
