@@ -24,6 +24,7 @@ use ReflectionMethod;
  * protected static array $auditAdditionalSubjects - Additional subjects to include, e.g. [['type' => 'organizations', 'foreign_key' => 'organization_id', 'role' => 'parent']]
  * protected static bool $auditAutoParentSubjects  - Auto-detect BelongsTo relationships as parent subjects (default: true)
  * protected static array $auditExcludeParents     - BelongsTo relationships to exclude from auto-detection, e.g. ['createdBy', 'country']
+ * protected static int $auditLevel                - Default visibility level for this model's audit events (default: config value)
  */
 trait HasAuditLogging
 {
@@ -34,6 +35,13 @@ trait HasAuditLogging
      * @var array<class-string, array<array{foreignKey: string, subjectType: string}>>
      */
     protected static array $belongsToCache = [];
+
+    /**
+     * Temporary level override for the current model class.
+     *
+     * @var array<class-string, int|null>
+     */
+    protected static array $auditLevelOverride = [];
 
     /**
      * Boot the trait and register model event listeners.
@@ -139,6 +147,7 @@ trait HasAuditLogging
             messageData: $messageData,
             payload: $payload,
             diff: $diff,
+            level: static::getAuditLevel(),
         );
     }
 
@@ -305,6 +314,26 @@ trait HasAuditLogging
     }
 
     /**
+     * Get the audit level for this model.
+     *
+     * Priority: temporary override > model property > config default
+     */
+    protected static function getAuditLevel(): int
+    {
+        // Check for temporary override first
+        if (isset(static::$auditLevelOverride[static::class])) {
+            return static::$auditLevelOverride[static::class];
+        }
+
+        $level = static::getStaticPropertyValue('auditLevel');
+        if ($level !== null) {
+            return $level;
+        }
+
+        return config('audit-logging.default_level', 0);
+    }
+
+    /**
      * Auto-detect BelongsTo relationships and return them as parent subjects.
      *
      * @return array<array{subject_type: string, subject_id: string, role: string}>
@@ -424,6 +453,20 @@ trait HasAuditLogging
             return $callback();
         } finally {
             static::setEventDispatcher($dispatcher);
+        }
+    }
+
+    /**
+     * Temporarily set the audit level for this model within the callback.
+     */
+    public static function withAuditLevel(int $level, callable $callback): mixed
+    {
+        static::$auditLevelOverride[static::class] = $level;
+
+        try {
+            return $callback();
+        } finally {
+            unset(static::$auditLevelOverride[static::class]);
         }
     }
 }

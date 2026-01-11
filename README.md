@@ -86,10 +86,13 @@ Per-model configuration is done via static properties:
 | `$auditAdditionalSubjects` | `array`  | `[]`                                               | Additional related subjects (manual)                               |
 | `$auditAutoParentSubjects` | `bool`   | `true`                                             | Auto-detect `BelongsTo` relationships as parent subjects           |
 | `$auditExcludeParents`     | `array`  | `[]`                                               | `BelongsTo` relationships to exclude from auto-detection           |
+| `$auditLevel`              | `int`    | _from config_                                      | Default visibility level for this model's audit events             |
 
 ### Example with All Options
 
 ```php
+use App\Enums\AuditLevel;
+
 class User extends Model
 {
     use HasAuditLogging;
@@ -116,6 +119,9 @@ class User extends Model
 
     // Only log create and delete events
     protected static array $auditEvents = ['created', 'deleted'];
+
+    // Default visibility level for audit events on this model
+    protected static int $auditLevel = AuditLevel::OWNER;
 }
 ```
 
@@ -214,6 +220,25 @@ Product::withoutAuditLogging(function () {
 });
 ```
 
+## Temporarily Override Audit Level
+
+You can temporarily override the audit level for operations within a callback:
+
+```php
+use App\Enums\AuditLevel;
+
+// Override level for specific operations
+Product::withAuditLevel(AuditLevel::DEVELOPER, function () {
+    Product::create([...]); // Logged at level 100 (DEVELOPER)
+    Product::find(1)->update([...]); // Logged at level 100 (DEVELOPER)
+});
+
+// The model's default level (or config default) is restored after the callback
+Product::create([...]); // Logged at model's default level
+```
+
+This is useful when you want to log certain operations at a different visibility level than the model's default, such as system-triggered changes that should only be visible to developers.
+
 ## Manual Audit Entries
 
 You can also write audit entries manually:
@@ -280,6 +305,32 @@ Audit::write(
     subjects: [...],
     level: AuditLevel::DEVELOPER,
 );
+```
+
+### Setting Default Level on Models
+
+You can set a default level for all audit events on a model using the `$auditLevel` property:
+
+```php
+use App\Enums\AuditLevel;
+
+class InternalNote extends Model
+{
+    use HasAuditLogging;
+
+    // All audit events for this model default to DEVELOPER level
+    protected static int $auditLevel = AuditLevel::DEVELOPER;
+}
+```
+
+You can also temporarily override the level using `withAuditLevel()`:
+
+```php
+// Log this specific operation at a different level
+Product::withAuditLevel(AuditLevel::DEVELOPER, function () {
+    // System-triggered update, only visible to developers
+    Product::find(1)->update(['sync_status' => 'completed']);
+});
 ```
 
 ### Querying by Level
