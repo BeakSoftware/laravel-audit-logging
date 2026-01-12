@@ -25,6 +25,11 @@ use ReflectionMethod;
  * protected static bool $auditAutoParentSubjects  - Auto-detect BelongsTo relationships as parent subjects (default: true)
  * protected static array $auditExcludeParents     - BelongsTo relationships to exclude from auto-detection, e.g. ['createdBy', 'country']
  * protected static int $auditLevel                - Default visibility level for this model's audit events (default: config value)
+ *
+ * Runtime overrides (use within callbacks):
+ *
+ * Model::withAuditLevel(int $level, callable $callback)     - Temporarily set audit level
+ * Model::withAuditEventType(string $type, callable $callback) - Temporarily override event type (e.g. 'init' instead of 'created')
  */
 trait HasAuditLogging
 {
@@ -42,6 +47,13 @@ trait HasAuditLogging
      * @var array<class-string, int|null>
      */
     protected static array $auditLevelOverride = [];
+
+    /**
+     * Temporary event type override for the current model class.
+     *
+     * @var array<class-string, string|null>
+     */
+    protected static array $auditEventTypeOverride = [];
 
     /**
      * Boot the trait and register model event listeners.
@@ -141,8 +153,11 @@ trait HasAuditLogging
             }
         }
 
+        // Check for event type override
+        $eventType = static::getAuditEventType($event);
+
         Audit::write(
-            event: "{$eventPrefix}.{$event}",
+            event: "{$eventPrefix}.{$eventType}",
             subjects: $subjects,
             messageData: $messageData,
             payload: $payload,
@@ -334,6 +349,20 @@ trait HasAuditLogging
     }
 
     /**
+     * Get the event type, applying any temporary override.
+     *
+     * Priority: temporary override > original event type
+     */
+    protected static function getAuditEventType(string $event): string
+    {
+        if (isset(static::$auditEventTypeOverride[static::class])) {
+            return static::$auditEventTypeOverride[static::class];
+        }
+
+        return $event;
+    }
+
+    /**
      * Auto-detect BelongsTo relationships and return them as parent subjects.
      *
      * @return array<array{subject_type: string, subject_id: string, role: string}>
@@ -467,6 +496,27 @@ trait HasAuditLogging
             return $callback();
         } finally {
             unset(static::$auditLevelOverride[static::class]);
+        }
+    }
+
+    /**
+     * Temporarily set the audit event type for this model within the callback.
+     *
+     * This allows overriding the default event type (created, updated, deleted)
+     * with a custom one (e.g., 'init' instead of 'created').
+     *
+     * Example:
+     *   Product::withAuditEventType('init', fn () => Product::create([...]));
+     *   // Logs as 'product.init' instead of 'product.created'
+     */
+    public static function withAuditEventType(string $eventType, callable $callback): mixed
+    {
+        static::$auditEventTypeOverride[static::class] = $eventType;
+
+        try {
+            return $callback();
+        } finally {
+            unset(static::$auditEventTypeOverride[static::class]);
         }
     }
 }

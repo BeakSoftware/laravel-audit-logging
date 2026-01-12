@@ -286,6 +286,35 @@ Product::create([...]); // Logged at model's default level
 
 This is useful when you want to log certain operations at a different visibility level than the model's default, such as system-triggered changes that should only be visible to developers.
 
+## Temporarily Override Event Type
+
+You can temporarily override the event type (created, updated, deleted) for operations within a callback:
+
+```php
+// Force a 'created' event to log as 'init'
+Product::withAuditEventType('init', fn () => Product::create([
+    'name' => 'New Product',
+]));
+// Logs as 'product.init' instead of 'product.created'
+
+// Force an 'updated' event to log as 'created' (e.g., for upsert scenarios)
+Product::withAuditEventType('created', fn () => $product->update([
+    'name' => 'Updated Name',
+]));
+// Logs as 'product.created' instead of 'product.updated'
+
+// Combine with withAuditLevel for full control
+Product::withAuditLevel(AuditLevel::DEVELOPER, fn () =>
+    Product::withAuditEventType('system_init', fn () => Product::create([...]))
+);
+// Logs as 'product.system_init' at level 100
+```
+
+This is useful for:
+- Semantic event naming (e.g., `init` for first-time setup vs `created` for regular creation)
+- Upsert scenarios where you want consistent event types
+- Custom lifecycle events that don't map to standard CRUD operations
+
 ## Manual Audit Entries
 
 You can also write audit entries manually:
